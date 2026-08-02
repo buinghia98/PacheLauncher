@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Library manifest. Activities are declared here so a host app gets them for free via manifest
+  merging, but every one of them is exported="false" - the host app's own launcher-facing activity
+  (or LauncherActivity itself, referenced from the host's intent-filter) is what actually gets
+  android:exported="true"/android:label/android:theme from the HOST manifest via a merge override.
+  See docs/INTEGRATION.md for the exact host-side manifest snippet.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Used by GistClient (OkHttp) for cloud sync. A connected gamepad needs no runtime
+         permission beyond what the OS already grants an input device, so no BLUETOOTH permission
+         is declared here; a host whose game engine talks to a controller over Bluetooth directly
+         (rather than through the standard InputDevice APIs this library's input layer uses)
+         declares that permission itself. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application>
+        <activity
+            android:name="com.teampacheworks.launcher.LauncherActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/Theme.PacheLauncher" />
+
+        <activity
+            android:name="com.teampacheworks.launcher.SaveManagementActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
+            android:theme="@style/Theme.PacheLauncher" />
+
+        <activity
+            android:name="com.teampacheworks.launcher.CloudBackupActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
+            android:theme="@style/Theme.PacheLauncher" />
+    </application>
+</manifest>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Extends Theme.PacheLauncher and overrides only the seed colour, exactly per docs/UI-SPEC.md
+  "Theme" - nothing else about the library's UI is per-game.
+-->
+<resources>
+    <style name="Theme.Sample" parent="Theme.PacheLauncher">
+        <item name="colorPrimary">@color/sample_primary</item>
+        <item name="colorPrimaryDark">@color/sample_primary_dark</item>
+    </style>
+</resources>

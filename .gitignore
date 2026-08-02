@@ -1,0 +1,30 @@
+# Gradle
+.gradle/
+build/
+*/build/
+gradle-app.setting
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local config
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Android / Java
+*.hprof
+*.apk
+*.aab
+captures/
+
+# Keystores - never commit signing material
+*.jks
+*.keystore
+
+# OS noise
+.DS_Store
+Thumbs.db

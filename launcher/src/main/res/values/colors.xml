@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Neutral fallback seed colour. A host app should NOT rely on this - it should override
+  Theme.PacheLauncher (or supply its own theme with the same attributes) with its own seed colour
+  derived from its own key art, the same way the sample app derives its seed colour from its own
+  icon. See docs/UI-SPEC.md "Per-game seed colour" and docs/INTEGRATION.md.
+-->
+<resources>
+    <color name="pl_default_primary">#4C6B54</color>
+    <color name="pl_default_primary_dark">#33472F</color>
+    <color name="pl_error">#C03030</color>
+    <color name="pl_fps_overlay">#00E63C</color>
+</resources>

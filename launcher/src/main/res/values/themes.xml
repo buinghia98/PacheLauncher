@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Material 3 theme for LauncherActivity/SaveManagementActivity/CloudBackupActivity (docs/UI-SPEC.md
+  "Theme"). A host app overrides this theme (or points the activities at its own, see
+  docs/INTEGRATION.md) to set colorPrimary/colorPrimaryDark from its own game's key art -
+  Theme.PacheLauncher itself carries only a neutral placeholder seed so the library is usable
+  standalone (e.g. in the sample app) without a host override.
+
+  com.google.android.material:material.DynamicColors.applyToActivitiesIfAvailable, called from the
+  host's Application.onCreate for the launcher process only, overrides this with a Material You
+  palette on devices that can derive one from the wallpaper - see docs/INTEGRATION.md.
+-->
+<resources>
+    <style name="Theme.PacheLauncher" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/pl_default_primary</item>
+        <item name="colorPrimaryDark">@color/pl_default_primary_dark</item>
+    </style>
+</resources>

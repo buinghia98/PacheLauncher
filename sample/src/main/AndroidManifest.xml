@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Minimal demonstration of adopting PacheLauncher (docs/INTEGRATION.md). LauncherActivity is
+  declared by the library with exported="false"; this manifest merge-overrides it to be the app's
+  actual launch entry point and points it at this app's own theme (which extends
+  Theme.PacheLauncher with a seed colour derived from this sample's own icon - see
+  docs/UI-SPEC.md "Per-game seed colour"). SampleGameActivity is a stand-in for a real game engine's
+  Activity; it demonstrates the wiring INTEGRATION.md describes and nothing more.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:name=".SampleApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Sample">
+
+        <!-- The library declares LauncherActivity as exported="false" with Theme.PacheLauncher
+             (docs/INTEGRATION.md step 3) - both are intentionally overridden here, so the merger
+             needs to be told this replacement is deliberate. -->
+        <activity
+            android:name="com.teampacheworks.launcher.LauncherActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Sample"
+            tools:replace="android:exported,android:theme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".SampleGameActivity"
+            android:exported="false"
+            android:process=":game"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/Theme.Sample" />
+
+    </application>
+</manifest>

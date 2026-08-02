@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder foreground for the sample app's adaptive icon: a plain "P" mark. A real port
+     replaces this with artwork derived from its own game, per docs/UI-SPEC.md "App icon". -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,30 L40,78 L50,78 L50,58 L62,58 C72,58 79,51 79,42 C79,33 72,30 62,30 L40,30 Z M50,39 L61,39 C66,39 69,40 69,44 C69,48 66,49 61,49 L50,49 Z" />
+</vector>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A per-game seed colour override, as every port using PacheLauncher supplies (docs/UI-SPEC.md
+  "Per-game seed colour"). This sample simply picks a colour; a real port derives one from its own
+  key art.
+-->
+<resources>
+    <color name="sample_primary">#3D6FB4</color>
+    <color name="sample_primary_dark">#284A7C</color>
+    <color name="ic_launcher_background">#284A7C</color>
+</resources>

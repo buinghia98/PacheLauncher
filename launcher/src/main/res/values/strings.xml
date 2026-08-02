@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Generic UI strings for the Dustaet design standard (docs/UI-SPEC.md). Per-game text (title,
+  subtitle, footer, app label) is NOT here - it comes from the host's LauncherConfig and is set
+  programmatically. Everything below is either fully generic, or takes a %1$s/%1$d argument the
+  Activities fill in from LauncherConfig at runtime (folder name, product name, counts...).
+-->
+<resources>
+    <string name="pl_back_again_to_exit">Press Back again to exit to launcher</string>
+
+    <string name="pl_play">PLAY</string>
+
+    <string name="pl_settings_header">Settings</string>
+
+    <string name="pl_aspect_label">Aspect ratio</string>
+    <string name="pl_aspect_hint">Applies the next time the game starts. The image is letterboxed, never stretched.</string>
+
+    <string name="pl_show_fps">Show FPS</string>
+    <string name="pl_show_fps_hint">Small green counter in the top-right corner of the game image. Applies the next time the game starts.</string>
+    <string name="pl_debug_logging">Debug logging</string>
+    <string name="pl_debug_logging_hint">Records boot steps and device info. Crash reports are written either way.</string>
+
+    <string name="pl_export_logs">Export logs</string>
+    <string name="pl_export_logs_ok">Exported %1$d log file(s) to Downloads/%2$s</string>
+    <string name="pl_export_logs_none">No logs to export yet.</string>
+    <string name="pl_export_logs_failed">Export failed: %1$s</string>
+
+    <string name="pl_save_and_cloud_header">Save &amp; Cloud</string>
+    <string name="pl_manage_saves">Manage saves</string>
+    <string name="pl_cloud_sync_gist">Cloud sync (GitHub Gist)</string>
+    <string name="pl_save_and_cloud_notice">Export saves to a zip, import one back, or sync them through a private GitHub Gist.</string>
+
+    <string name="pl_cloud_backup">Cloud Backup</string>
+
+    <!-- ===================== Cloud backup (design spec §3) ===================== -->
+    <string name="pl_cloud_intro_title">Back up your saves to your own GitHub account</string>
+    <string name="pl_cloud_intro_body">%1$s stores backups in one secret GitHub Gist in your own account. Nothing is uploaded until you press Upload, and nothing leaves this device until you connect a token.</string>
+    <string name="pl_cloud_steps">1. Open GitHub and sign in.\n2. Create a fine-grained personal access token.\n3. Expiration: about 366 days.\n4. Repository access: leave at “Public repositories” -- none is needed.\n5. Account permissions → Gists → Read and write. That one permission is all it needs.\n6. Copy the token (GitHub shows it once) and paste it below.</string>
+    <string name="pl_cloud_open_github">Create token</string>
+    <string name="pl_cloud_my_tokens">My tokens</string>
+    <string name="pl_cloud_token_hint">github_pat_…</string>
+    <string name="pl_cloud_paste">Paste from clipboard</string>
+    <string name="pl_cloud_connect">Connect</string>
+    <string name="pl_cloud_clipboard_empty">The clipboard is empty.</string>
+    <string name="pl_cloud_connected_ok">Connected as %1$s. Your gist is created by your first Upload.</string>
+    <string name="pl_cloud_token_not_saved">⚠ The token could not be saved to this device, so you will have to paste it again next time. This session works normally.</string>
+
+    <string name="pl_cloud_connected_as">Connected as %1$s</string>
+    <string name="pl_cloud_your_account">your GitHub account</string>
+    <string name="pl_cloud_gist_line">Gist %1$s · secret (unlisted, not private -- anyone with the link can read it)</string>
+    <string name="pl_cloud_no_gist_yet">No gist yet. Your first Upload creates one, unlisted, in your own account.</string>
+    <string name="pl_cloud_refresh">Refresh</string>
+    <string name="pl_cloud_open_gist">Open in browser</string>
+    <string name="pl_cloud_upload">Upload a backup…</string>
+    <string name="pl_cloud_upload_go">Upload</string>
+    <string name="pl_cloud_upload_body">This uploads a bundle of the %1$d save file(s) on this device. Add a note so you can tell backups apart.</string>
+    <string name="pl_cloud_note_hint">Note (optional)</string>
+    <string name="pl_cloud_slots">Cloud slots</string>
+    <string name="pl_cloud_no_slots">No backups yet.</string>
+    <string name="pl_cloud_slot_meta">%1$d bytes · uploaded %2$s</string>
+    <string name="pl_cloud_download">Download</string>
+    <string name="pl_cloud_delete">Delete</string>
+    <string name="pl_cloud_nothing_to_upload">Nothing to upload</string>
+    <string name="pl_cloud_nothing_to_upload_body">There are no saves on this device yet. Download still works, and it is how you would restore one.</string>
+    <string name="pl_cloud_upload_ok">Uploaded to %1$s.</string>
+    <string name="pl_cloud_up_to_date">Up to date -- these saves are already in %1$s, so nothing was uploaded.</string>
+    <string name="pl_cloud_upload_failed">Upload failed</string>
+
+    <string name="pl_cloud_download_title">Replace your saves?</string>
+    <string name="pl_cloud_download_body">This replaces the saves on this device with %1$d file(s) from the cloud. The game folder currently holds %2$d.</string>
+    <string name="pl_cloud_download_ok">Restored %1$d save file(s). Your previous saves are kept as %2$s.</string>
+    <string name="pl_cloud_download_failed">Download failed</string>
+    <string name="pl_cloud_download_refused">Download refused</string>
+    <string name="pl_cloud_validate_only">Download anyway</string>
+    <string name="pl_cloud_validate_only_body">You can still download it: the bundle is checked for being a readable save bundle either way, and it is refused if it is not. Only the “was this changed outside the launcher” check is skipped.</string>
+
+    <string name="pl_cloud_delete_slot_title">Delete this cloud slot?</string>
+    <string name="pl_cloud_delete_slot_body">This removes %1$s from your GitHub gist.\n\nThis cannot be undone from here. There is no trash can to get it back from.\n\nThe saves on this device are not touched.</string>
+    <string name="pl_cloud_slot_deleted">Deleted %1$s.</string>
+    <string name="pl_cloud_delete_failed_title">Delete failed</string>
+
+    <string name="pl_cloud_disconnect">Disconnect</string>
+    <string name="pl_cloud_disconnect_body">This removes the token from this device.\n\nIt does NOT delete your cloud backups and it does NOT revoke the token -- revoke it yourself on GitHub if you want it dead. Pasting a new token from the same account brings the same backups straight back.</string>
+    <string name="pl_cloud_disconnect_delete">Disconnect and delete cloud data</string>
+    <string name="pl_cloud_disconnect_delete_body1">This deletes the whole gist from your GitHub account, including every backup in it, and then removes the token from this device.</string>
+    <string name="pl_cloud_are_you_sure">Are you sure?</string>
+    <string name="pl_cloud_disconnect_delete_body2">Every cloud backup will be gone. This cannot be undone.\n\nThe saves on this device are not touched.</string>
+    <string name="pl_cloud_continue">Continue</string>
+    <string name="pl_cloud_delete_everything">Delete everything</string>
+    <string name="pl_cloud_disconnected_ok">Disconnected. Your cloud backups are untouched.</string>
+    <string name="pl_cloud_deleted_ok">Cloud data deleted and token removed from this device.</string>
+    <string name="pl_cloud_delete_failed">Could not delete the gist: %1$s</string>
+
+    <string name="pl_cloud_stale">⚠ GitHub is still serving an older copy of your cloud index than this device last wrote. What you see may be out of date -- press Refresh in a moment.</string>
+    <string name="pl_cloud_action_failed">Something went wrong. Your saves on this device were not changed.</string>
+    <string name="pl_cloud_fix_permission">Edit the token on GitHub and set Account permissions → Gists → Read and write.</string>
+    <string name="pl_cloud_offline_hint">Cloud features need an internet connection; everything else in the game works without one.</string>
+    <string name="pl_cloud_unauthorized_hint">Check you copied the whole token -- GitHub only shows it once. If it expired or was deleted, create a new one.</string>
+    <string name="pl_cloud_no_browser">No browser is available on this device. The address is: %1$s</string>
+    <string name="pl_cloud_footer">The gist is secret, which means unlisted -- not private. Anyone who has its URL can read it, so do not share the URL. The token is stored on this device only, is excluded from Android Auto Backup, and is obfuscated rather than hardware-encrypted.</string>
+
+    <!-- ===================== Save Management (design spec §2) ===================== -->
+    <string name="pl_save_management">Save Management</string>
+    <string name="pl_saves_on_this_device">Saves on this device</string>
+    <string name="pl_no_saves_yet">No saves yet -- play the game and save first.</string>
+    <string name="pl_saves_count">%1$d save file(s) will go into the bundle.</string>
+    <string name="pl_export_bundle">Export save bundle…</string>
+    <string name="pl_import_bundle">Import save bundle…</string>
+    <string name="pl_save_management_footer">A bundle is a zip of every save file in the game folder matching the configured pattern. Machine-local settings files are deliberately left out -- they are a setting, not progress. Import auto-detects a zip or a base64 cloud payload, validates it before anything is written, and keeps your current saves as pre-import.bak.zip.</string>
+
+    <string name="pl_export_ok">Exported %1$d save file(s), %2$d bytes.</string>
+    <string name="pl_export_failed">Export failed: %1$s</string>
+    <string name="pl_export_cancelled">Export cancelled. Nothing was changed.</string>
+    <string name="pl_import_cancelled">Import cancelled. Your saves were not changed.</string>
+    <string name="pl_header_check_warn">Note: these entries do not pass the save format\'s header check, which is unusual: %1$s</string>
+
+    <string name="pl_import_rejected">That is not a valid save bundle</string>
+    <string name="pl_import_rejected_short">Not a save bundle. Your saves were not changed.</string>
+    <string name="pl_saves_untouched">Your saves on this device were not changed.</string>
+    <string name="pl_saves_restored">Your previous saves were restored.</string>
+
+    <string name="pl_import_confirm_title">Replace your saves?</string>
+    <string name="pl_import_confirm_body">This writes %1$d save file(s) into the game folder, which currently holds %2$d.</string>
+    <string name="pl_import_confirm_backup">Everything currently there is kept as %1$s first.</string>
+    <string name="pl_import_replace">Replace</string>
+    <string name="pl_import_done">Imported</string>
+    <string name="pl_import_ok">%1$d save file(s) were written. Your previous saves are kept as %2$s.</string>
+    <string name="pl_import_ok_short">Imported %1$d save file(s).</string>
+    <string name="pl_import_failed">Import failed</string>
+    <string name="pl_import_failed_short">Import failed. Your previous saves were restored.</string>
+
+    <!-- ===================== Crash / debug (design spec §4) ===================== -->
+    <string name="pl_crash_notice">The game exited abnormally last time -- a log was saved to Downloads/%1$s.</string>
+    <string name="pl_crash_notice_nolog">The game exited abnormally last time.</string>
+</resources>
