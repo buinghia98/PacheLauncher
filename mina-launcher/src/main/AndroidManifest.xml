@@ -5,15 +5,25 @@
   here per the library's own convention, so the merger needs tools:replace to accept it.
 
   MinaGameProxyActivity stands in for docs/INTEGRATION.md's "game Activity" - the real game
-  Activity (com.teampacheworks.mina.MainActivity, an SDLActivity subclass) lives in a completely
-  separate Gradle project/app (android/) with its own applicationId, built in parallel by another
-  agent. PacheLauncher's LauncherConfig.gameActivityClass wants a compile-time Class<Activity> in
+  Activity (class com.teampacheworks.mina.MainActivity, shipped by applicationId
+  com.teampacheworks.minathehollower - the class kept the old Java namespace when the app was
+  renamed) lives in a completely separate Gradle project/app (android/) with its own
+  applicationId, built by a different pipeline. PacheLauncher's LauncherConfig.gameActivityClass wants a compile-time Class<Activity> in
   THIS app, so the proxy fires an explicit Intent at the other app's package/activity by name and
   finishes immediately - see MinaGameProxyActivity.kt for the exact mechanics and what happens if
   that APK isn't installed yet.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Android 11+ package visibility: MinaGameProxyActivity fires an explicit cross-package
+      Intent at the game APK, so that package must be visible to this app or the start would
+      fail as if it were not installed.
+    -->
+    <queries>
+        <package android:name="com.teampacheworks.minathehollower" />
+    </queries>
 
     <application
         android:name=".MinaApplication"

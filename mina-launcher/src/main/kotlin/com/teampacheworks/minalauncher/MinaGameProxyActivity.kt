@@ -16,7 +16,7 @@ import com.teampacheworks.launcher.log.LauncherLog
  * compile-time `Class<Activity>` in *this* app, because the library has no opinion about the
  * game's engine, ABI set, or process model (README.md "Constraints") and is not allowed to take a
  * native dependency of its own. Mina the Hollower's real Activity -
- * `com.teampacheworks.mina.MainActivity`, an SDLActivity subclass with its own native `.so`
+ * `com.teampacheworks.mina.MainActivity` (package `com.teampacheworks.minathehollower`), an SDLActivity subclass with its own native `.so`
  * payload - is built as a completely separate Gradle project under `android/` with its own
  * applicationId, by a different pipeline than this launcher. There is no shared class to
  * reference at compile time and there should never be one (that would require this pure-Kotlin
@@ -30,7 +30,11 @@ import com.teampacheworks.launcher.log.LauncherLog
 class MinaGameProxyActivity : AppCompatActivity() {
 
     companion object {
-        private const val GAME_PACKAGE = "com.teampacheworks.mina"
+        private const val GAME_PACKAGE = "com.teampacheworks.minathehollower"
+        // The class name deliberately keeps the OLD package: the game APK renamed
+        // only its applicationId (com.teampacheworks.mina ->
+        // com.teampacheworks.minathehollower) and left its Java namespace, and
+        // therefore MainActivity's fully-qualified name, untouched.
         private const val GAME_ACTIVITY = "com.teampacheworks.mina.MainActivity"
     }
 
@@ -43,7 +47,7 @@ class MinaGameProxyActivity : AppCompatActivity() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             // The three standard extras a PacheLauncher game Activity expects
             // (docs/INTEGRATION.md §5) are copied through in case a future build of
-            // com.teampacheworks.mina.MainActivity chooses to read them; today's SDLActivity
+            // the game MainActivity chooses to read them; today's SDLActivity
             // scaffold does not, and simply ignores unknown extras.
             putExtras(intent)
         }
