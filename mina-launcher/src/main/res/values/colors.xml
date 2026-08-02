@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Per-game seed colour (docs/UI-SPEC.md "Per-game seed colour"), sampled from the dominant colours
+  of "Mina - The Hollower.png" key art: a deep crimson red and a near-black maroon.
+-->
+<resources>
+    <color name="mina_primary">#D8102A</color>
+    <color name="mina_primary_dark">#4A0016</color>
+    <color name="ic_launcher_background">#1A0008</color>
+</resources>

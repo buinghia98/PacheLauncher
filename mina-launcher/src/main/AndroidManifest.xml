@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Mina the Hollower's PacheLauncher host manifest (docs/INTEGRATION.md step 3). LauncherActivity
+  is declared by the library with exported="false" and Theme.PacheLauncher; both are overridden
+  here per the library's own convention, so the merger needs tools:replace to accept it.
+
+  MinaGameProxyActivity stands in for docs/INTEGRATION.md's "game Activity" - the real game
+  Activity (com.teampacheworks.mina.MainActivity, an SDLActivity subclass) lives in a completely
+  separate Gradle project/app (android/) with its own applicationId, built in parallel by another
+  agent. PacheLauncher's LauncherConfig.gameActivityClass wants a compile-time Class<Activity> in
+  THIS app, so the proxy fires an explicit Intent at the other app's package/activity by name and
+  finishes immediately - see MinaGameProxyActivity.kt for the exact mechanics and what happens if
+  that APK isn't installed yet.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:name=".MinaApplication"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Mina">
+
+        <activity
+            android:name="com.teampacheworks.launcher.LauncherActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Mina"
+            tools:replace="android:exported,android:theme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".MinaGameProxyActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Mina"
+            android:noHistory="true"
+            android:excludeFromRecents="true" />
+
+    </application>
+
+</manifest>
