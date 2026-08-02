@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Main launcher screen (docs/UI-SPEC.md "Main screen"): centred 560dp column, PLAY the one filled
-  control, everything else outlined, two MaterialCardView groups with a bold colorPrimary header
-  and an 11sp hint line under every row. Icon/title/subtitle/footer text are set programmatically
-  from LauncherConfig in LauncherActivity - only the theme's seed colour and this text are per-game;
-  everything else here is identical for every port using this library.
+  Main launcher screen (docs/UI-SPEC.md "Main screen"): centred column capped at 560dp (full width
+  on narrower screens - see MaxWidthLinearLayout), PLAY the one filled control, everything else
+  outlined, two MaterialCardView groups with a bold colorPrimary header and an 11sp hint line under
+  every row. Icon/title/subtitle/footer text are set programmatically from LauncherConfig in
+  LauncherActivity - only the theme's seed colour and this text are per-game; everything else here
+  is identical for every port using this library.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -16,10 +17,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <LinearLayout
-            android:layout_width="560dp"
+        <com.teampacheworks.launcher.ui.MaxWidthLinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
+            android:maxWidth="560dp"
             android:orientation="vertical"
             android:padding="24dp">
 
@@ -253,6 +255,6 @@
                 android:gravity="center"
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="11sp" />
-        </LinearLayout>
+        </com.teampacheworks.launcher.ui.MaxWidthLinearLayout>
     </FrameLayout>
 </ScrollView>
