@@ -15,6 +15,20 @@ object LauncherContract {
     const val EXTRA_SHOW_FPS = "com.teampacheworks.launcher.SHOW_FPS"
     const val EXTRA_DEBUG_LOG = "com.teampacheworks.launcher.DEBUG_LOG"
 
+    /**
+     * Namespace for the extras carrying [LauncherConfig.gameOptions] selections; see
+     * [extraNameFor]. Kept distinct from the three standard extras so a host can add, rename or
+     * drop an option without ever colliding with them.
+     */
+    const val EXTRA_OPTION_PREFIX = "com.teampacheworks.launcher.OPTION."
+
+    /**
+     * The String extra name a [LauncherOption]'s selected value arrives under in the game
+     * activity's Intent, e.g. `extraNameFor("fps_limit")`. The value is the chosen
+     * [LauncherOptionChoice.value], never the label.
+     */
+    fun extraNameFor(optionKey: String): String = EXTRA_OPTION_PREFIX + optionKey
+
     const val ASPECT_16_9 = "16:9"
     const val ASPECT_4_3 = "4:3"
     const val ASPECT_FULL = "full"

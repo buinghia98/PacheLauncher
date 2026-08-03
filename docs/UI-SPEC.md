@@ -28,6 +28,9 @@ ScrollView -> FrameLayout -> LinearLayout root (vertical, width = 560dp FIXED, c
    - Aspect ratio label (14sp) + a plain framework `Spinner` (NOT an exposed dropdown —
      `android.R.layout.simple_spinner_item` / `simple_spinner_dropdown_item`), then an 11sp hint
      line
+   - Zero or more host option rows (`LauncherConfig.gameOptions`), each an identical
+     label(14sp, marginBottom 2dp) + plain `Spinner` (marginBottom 8dp) + hint(11sp,
+     marginBottom 12dp) triple, in list order — see "Host options" below
    - MaterialSwitch "Debug logging" + 11sp hint (Debug logging comes BEFORE Show FPS)
    - MaterialSwitch "Show FPS" + 11sp hint
    - MaterialButton OUTLINED "Export logs"
@@ -84,6 +87,25 @@ There is no background art anywhere in the layout.
   name into it, that is a sign the string belongs in the host app instead.
 - Prose uses `--` in place of an em dash wherever the string lives in XML (matches the existing
   strings; keep new ones consistent).
+
+## Host options
+
+A port that needs one more "pick one of N" knob on the Settings card declares a `LauncherOption`
+in `LauncherConfig.gameOptions` instead of forking this layout. The rows are built by
+`LauncherActivity` into `@id/pl_options_container` (which sits between the aspect hint and the
+Debug logging switch) with the aspect row's geometry hardcoded, so a host cannot drift from this
+spec by declaring one: 14sp label, plain framework `Spinner` (never an exposed dropdown), 11sp
+hint. A host declaring none gets a zero-height container and a Settings card identical to before.
+
+Labels and choice labels follow the same sentence-case rule as every other string here, and live
+in the host app (they name a game-specific concept, so they must not be added to this library's
+`strings.xml`). `LauncherOption.hint` is required rather than optional — a bare dropdown with no
+explanatory line is the one way a new row can break this standard while still compiling.
+
+The library never interprets a selection: it persists it under `"opt_" + key`, shows it, and hands
+the chosen `value` to the game Activity as the String extra
+`LauncherContract.extraNameFor(key)`. An FPS limiter, a texture-quality level and a scaler mode are
+all the same thing to it.
 
 ## Per-game seed colour
 

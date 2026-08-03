@@ -75,6 +75,35 @@ Every field is documented in `launcher/src/main/kotlin/com/teampacheworks/launch
 read the KDoc there before guessing at a value; several fields (`cloudFenceTag`, `cloudTokenMagic`)
 have stability requirements once real players have data riding on them.
 
+## 2b. (Optional) extra Settings-card options
+
+Anything your port needs as a "pick one of N" setting goes in `LauncherConfig.gameOptions` — the
+library renders each one as a label + `Spinner` + hint row on the Settings card (docs/UI-SPEC.md
+"Host options"), persists the selection across launches, and hands the chosen `value` to your game
+Activity. It is deliberately engine-neutral: the library never learns what the value means.
+
+```kotlin
+gameOptions = listOf(
+    LauncherOption(
+        key = "fps_limit",                       // stable: drives the pref key AND the extra name
+        label = "FPS limit",
+        hint = "Caps how fast the game runs. Applies the next time the game starts.",
+        choices = (30..120 step 5).map { LauncherOptionChoice("$it", "$it FPS") } +
+            LauncherOptionChoice("unlimited", "Unlimited"),
+        defaultValue = "60"
+    )
+)
+```
+
+Read it in the game Activity with the contract helper (never by hand-writing the extra name):
+
+```kotlin
+val fpsLimit = intent.getStringExtra(LauncherContract.extraNameFor("fps_limit"))
+```
+
+`adb` can override one for a single launch without disturbing what the player picked:
+`am start ... --ez autoplay true -e opt_fps_limit 30`.
+
 ## 3. Manifest
 
 The library's own manifest already declares `LauncherActivity`, `SaveManagementActivity`, and

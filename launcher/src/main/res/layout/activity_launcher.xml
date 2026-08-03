@@ -156,7 +156,18 @@
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="11sp" />
 
-                    <!-- Control order: aspect -> Debug logging -> Show FPS. -->
+                    <!-- LauncherConfig.gameOptions: one label + Spinner + 11sp hint triple per
+                         host-declared option, built at runtime by LauncherActivity in exactly the
+                         geometry of the aspect row above. Empty (zero-height) for a host that
+                         declares none, which is why the container is unconditional rather than
+                         toggled GONE. -->
+                    <LinearLayout
+                        android:id="@+id/pl_options_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <!-- Control order: aspect -> host options -> Debug logging -> Show FPS. -->
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/pl_debug_switch"
                         android:layout_width="match_parent"

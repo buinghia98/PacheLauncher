@@ -52,6 +52,13 @@ data class AspectOption(val value: String, val label: String)
  * @param aspectOptions The Settings card's aspect-ratio dropdown, in display order. The game
  *   activity is responsible for actually letterboxing to the chosen [AspectOption.value].
  * @param defaultAspectValue Must equal one of [aspectOptions]'s values.
+ * @param gameOptions Extra host-declared enumerated settings ("pick one of N") rendered on the
+ *   Settings card directly under the aspect row, in list order, each as a label + Spinner + hint
+ *   triple identical in geometry to the aspect row (docs/UI-SPEC.md "Host options"). Each
+ *   selection is persisted under [LauncherOption.prefsKey] and handed to the game activity as the
+ *   String extra [LauncherOption.extraName]. The library never interprets the values - an FPS
+ *   limiter, a texture-quality level and a scaler mode are all the same thing to it. Empty by
+ *   default, in which case the Settings card is byte-for-byte what it always was.
  * @param gameActivityClass The host's game activity, started by the PLAY button.
  * @param buildGameIntentExtras Called after the three standard extras
  *   ([LauncherContract.EXTRA_ASPECT]/[LauncherContract.EXTRA_SHOW_FPS]/
@@ -88,6 +95,7 @@ data class LauncherConfig(
     val exportFilenamePrefix: String = "${cloudAppId}-save-",
     val aspectOptions: List<AspectOption> = LauncherContract.DEFAULT_ASPECT_OPTIONS,
     val defaultAspectValue: String = LauncherContract.ASPECT_16_9,
+    val gameOptions: List<LauncherOption> = emptyList(),
     val gameActivityClass: Class<out Activity>,
     val buildGameIntentExtras: (Intent, aspect: String, fps: Boolean, debug: Boolean) -> Unit = { _, _, _, _ -> },
     val appVersionName: String = "dev",

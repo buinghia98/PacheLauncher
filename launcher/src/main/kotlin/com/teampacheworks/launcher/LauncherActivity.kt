@@ -6,9 +6,12 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.util.TypedValue
+import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -44,6 +47,13 @@ class LauncherActivity : AppCompatActivity() {
 
     /** Current aspect as an index into [LauncherConfig.aspectOptions]. */
     private var aspectIndex = 0
+
+    /**
+     * Current selection per [LauncherConfig.gameOptions] entry, parallel to that list. Held as
+     * indices for the same reason [aspectIndex] is: a Spinner speaks positions, and the value
+     * behind a position is whatever the config says it is.
+     */
+    private var optionIndices = IntArray(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,6 +95,11 @@ class LauncherActivity : AppCompatActivity() {
 
         fpsSwitch.isChecked = prefs.getBoolean(KEY_FPS, false)
         debugSwitch.isChecked = prefs.getBoolean(KEY_DEBUG, false)
+        // After the two switches are restored: a Spinner's first onItemSelected is dispatched on
+        // the next layout pass, but persist() writes every control at once, so building the
+        // option rows before the switches hold their persisted values is a needless way to make
+        // that ordering load-bearing.
+        buildOptionRows(findViewById(R.id.pl_options_container))
         fpsSwitch.setOnCheckedChangeListener { _, _ -> persist() }
         debugSwitch.setOnCheckedChangeListener { _, _ -> persist() }
 
@@ -105,8 +120,69 @@ class LauncherActivity : AppCompatActivity() {
                 ?: currentAspect()
             val fps = i.getBooleanExtra(EXTRA_FPS_SHORT, fpsSwitch.isChecked)
             val debug = i.getBooleanExtra(EXTRA_DEBUG_SHORT, debugSwitch.isChecked)
-            Log.i(LauncherLog.tag, "autoplay requested aspect=$aspect fps=$fps debug=$debug")
-            launchGame(aspect, fps, debug)
+            // Host options join the same shortcut vocabulary: `-e opt_<key> <value>` overrides one
+            // for this launch only (nothing is persisted), so a smoke test can sweep an option
+            // without touching what the player picked.
+            val options = config.gameOptions.mapIndexed { index, option ->
+                val override = i.getStringExtra(option.prefsKey)
+                    ?.takeIf { v -> option.choices.any { it.value == v } }
+                override ?: option.choices[optionIndices[index]].value
+            }
+            Log.i(LauncherLog.tag, "autoplay requested aspect=$aspect fps=$fps debug=$debug " +
+                "options=$options")
+            launchGame(aspect, fps, debug, options)
+        }
+    }
+
+    /**
+     * Materialises [LauncherConfig.gameOptions] into the Settings card. Built in code rather than
+     * in the layout XML because the row count is per-host; the geometry, sizes and control types
+     * are hardcoded to the aspect row's so a host cannot drift from docs/UI-SPEC.md by declaring
+     * an option.
+     */
+    private fun buildOptionRows(container: ViewGroup) {
+        optionIndices = IntArray(config.gameOptions.size)
+        val dp = resources.displayMetrics.density
+        config.gameOptions.forEachIndexed { index, option ->
+            optionIndices[index] = option.indexOf(prefs.getString(option.prefsKey, option.defaultValue))
+
+            container.addView(TextView(this).apply {
+                text = option.label
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = (2 * dp).toInt() }
+            })
+
+            // Plain framework Spinner, exactly as the aspect row -- NOT an exposed dropdown.
+            container.addView(Spinner(this).apply {
+                adapter = ArrayAdapter(
+                    this@LauncherActivity,
+                    android.R.layout.simple_spinner_item,
+                    option.choices.map { it.label }
+                ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+                setSelection(optionIndices[index])
+                onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(p: AdapterView<*>?, v: View?, position: Int, id: Long) {
+                        optionIndices[index] = position
+                        persist()
+                    }
+
+                    override fun onNothingSelected(parent: AdapterView<*>?) {}
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = (8 * dp).toInt() }
+            })
+
+            container.addView(TextView(this).apply {
+                text = option.hint
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                secondaryTextColor()?.let { setTextColor(it) }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = (12 * dp).toInt() }
+            })
         }
     }
 
@@ -161,21 +237,50 @@ class LauncherActivity : AppCompatActivity() {
 
     private fun currentAspect(): String = config.aspectOptions[aspectIndex].value
 
+    /** Selected value per [LauncherConfig.gameOptions] entry, parallel to that list. */
+    private fun currentOptionValues(): List<String> =
+        config.gameOptions.mapIndexed { i, option -> option.choices[optionIndices[i]].value }
+
+    /**
+     * `?android:attr/textColorSecondary` as the layout XML's hint lines resolve it. Read through
+     * `obtainStyledAttributes` rather than `Theme.resolveAttribute` + `getColor` because the
+     * attribute is a ColorStateList in every Material theme, and asking for it as a plain colour
+     * int throws.
+     */
+    private fun secondaryTextColor(): android.content.res.ColorStateList? {
+        val ta = obtainStyledAttributes(intArrayOf(android.R.attr.textColorSecondary))
+        val csl = ta.getColorStateList(0)
+        ta.recycle()
+        return csl
+    }
+
     private fun persist() {
-        prefs.edit()
+        val editor = prefs.edit()
             .putString(KEY_ASPECT, currentAspect())
             .putBoolean(KEY_FPS, fpsSwitch.isChecked)
             .putBoolean(KEY_DEBUG, debugSwitch.isChecked)
-            .apply()
+        config.gameOptions.forEachIndexed { i, option ->
+            editor.putString(option.prefsKey, option.choices[optionIndices[i]].value)
+        }
+        editor.apply()
         LauncherLog.enabled = debugSwitch.isChecked
     }
 
-    private fun launchGame(aspect: String, fps: Boolean, debug: Boolean) {
-        Log.i(LauncherLog.tag, "starting game activity aspect=$aspect fps=$fps debug=$debug")
+    private fun launchGame(
+        aspect: String,
+        fps: Boolean,
+        debug: Boolean,
+        options: List<String> = currentOptionValues()
+    ) {
+        Log.i(LauncherLog.tag, "starting game activity aspect=$aspect fps=$fps debug=$debug " +
+            "options=${config.gameOptions.map { it.key }.zip(options)}")
         val intent = Intent(this, config.gameActivityClass)
             .putExtra(LauncherContract.EXTRA_ASPECT, aspect)
             .putExtra(LauncherContract.EXTRA_SHOW_FPS, fps)
             .putExtra(LauncherContract.EXTRA_DEBUG_LOG, debug)
+        config.gameOptions.forEachIndexed { i, option ->
+            intent.putExtra(option.extraName, options[i])
+        }
         config.buildGameIntentExtras(intent, aspect, fps, debug)
         startActivity(intent)
     }
