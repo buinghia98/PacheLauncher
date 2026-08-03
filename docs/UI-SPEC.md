@@ -107,6 +107,13 @@ the chosen `value` to the game Activity as the String extra
 `LauncherContract.extraNameFor(key)`. An FPS limiter, a texture-quality level and a scaler mode are
 all the same thing to it.
 
+A **boolean** knob is not a special case: declare it as a two-choice option (`Off`/`On` labels over
+two stable values) and it renders as a two-item `Spinner` like every other row. There is
+deliberately no switch/toggle option kind — introducing one would add a second render path and a
+row of a different shape mid-column, breaking the uniform label→`Spinner`→hint rhythm this card is
+built on. The Hades II port's "Async GPU submit" row is a boolean expressed exactly this way, next
+to its multi-choice "Present mode" and "FPS limit" rows.
+
 ## Per-game seed colour
 
 Every port picks a single flat primary colour (and a darker variant) from its own key art and

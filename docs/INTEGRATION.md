@@ -104,6 +104,18 @@ val fpsLimit = intent.getStringExtra(LauncherContract.extraNameFor("fps_limit"))
 `adb` can override one for a single launch without disturbing what the player picked:
 `am start ... --ez autoplay true -e opt_fps_limit 30`.
 
+A **boolean** knob is just a two-choice option — give it `Off`/`On` labels over stable values
+(`"0"`/`"1"`, or whatever your engine reads) and let it render as a two-item `Spinner` like any
+other row. There is intentionally no separate switch/toggle option kind: the Settings card is a
+uniform column of label→`Spinner`→hint rows (docs/UI-SPEC.md "Host options"), and a two-item
+dropdown expresses a boolean without a second render path or a broken visual rhythm. The Hades II
+port's "Async GPU submit" row is exactly this pattern.
+
+If the chosen `value` is already the string your engine consumes, forward it verbatim; only add a
+transform when the displayed choice and the engine input genuinely differ (the FPS limiter turns
+`"60"` into a microsecond budget, so it does; a present-mode option whose values are already
+`fifo`/`mailbox`/`immediate` does not).
+
 ## 3. Manifest
 
 The library's own manifest already declares `LauncherActivity`, `SaveManagementActivity`, and
