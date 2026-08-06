@@ -238,6 +238,52 @@ set `SaveBundle.headerCheck` — otherwise the default accepts anything non-empt
 Nothing else is required: `SaveManagementActivity` lists, exports, and imports using
 `LauncherConfig` alone.
 
+### 6a. `recursiveSaves` — when save data isn't directly in `filesDir`
+
+Some ports don't write saves flat into `filesDir` — they nest them under profile/slot/backup
+folders (e.g. `PROFILES/<guid>/StorySlot0/variable-storage.json`). By default `SaveBundle` only
+scans `filesDir` itself (`recursiveSaves = false`, the historical behavior — **zero change** for
+existing games), so a game whose saves live even one level deeper would bundle nothing.
+
+Set `recursiveSaves = true` on `LauncherConfig` to opt in:
+
+```kotlin
+LauncherConfig(
+    // ...
+    savePatterns = listOf("*.json", "format-version.txt"),
+    saveExcludeNames = setOf("device_config.txt"),
+    recursiveSaves = true,
+)
+```
+
+With it on:
+
+- `SaveBundle` walks the whole `filesDir` tree instead of one level.
+- `savePatterns`/`saveExcludeNames` are matched against **both** each file's bare name and its
+  path relative to `filesDir` (forward-slash normalized) — a pattern like `"*.json"` still matches
+  `PROFILES/<guid>/profile-metadata.json` by basename, and an exclude name can be either a bare
+  name or a full relative path.
+- Zip entries are stored under their relative path (`PROFILES/<guid>/StorySlot0/variable-storage.json`)
+  instead of being flattened to a bare name — this matters as soon as two files share a name at
+  different depths (e.g. `variable-storage.json` under `StorySlot0` and `StorySlot1`), which the
+  old basename-only scheme could not represent without collisions.
+- Entry ordering, the pinned 1980-01-01 zip timestamps, and the SHA-256 content-identity guarantee
+  are unchanged — only the *key* each entry is stored/sorted under changes shape.
+- On import, entries are restored to their relative path under `filesDir`, creating parent
+  directories as needed; the existing temp → validate → pre-import-backup → replace → rollback
+  commit flow (`SaveImporter`) is unchanged, and the pre-import backup itself is taken with the
+  same recursive walk so nested trees are fully recoverable too.
+- Zip-slip protection: any entry name that is absolute, escapes the root via a `..` segment, or has
+  a dotfile/dir component is dropped on read rather than trusted — a hostile or corrupt bundle can
+  never write outside `filesDir`.
+- Always skipped regardless of `savePatterns`: `cloud.token`, the launcher/cloud prefs xml file
+  names, any dotfile/dir (a path component starting with `.`), and symlinks.
+
+Turning `recursiveSaves` on changes save discovery only for that game — it has no effect on any
+other `LauncherConfig` instance, and leaving it at its `false` default keeps a flat-save game's
+bundle bytes (and therefore its SHA-256 dedup identity) bit-for-bit identical to before this
+option existed.
+
 ## 7. Cloud backup
 
 No extra wiring needed beyond `LauncherConfig.cloudAppId`/`cloudProductName`/`cloudFenceTag` — see
