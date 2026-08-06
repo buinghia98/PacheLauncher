@@ -95,11 +95,15 @@ object SaveImporter {
             val backup = SaveBundle.createBundleFromDir(filesDir)
             File(filesDir, SaveBundle.PRE_IMPORT_BACKUP).writeBytes(backup)
 
-            // 4. replace
+            // 4. replace - `name` may be a relative path (recursiveSaves), so make sure its parent
+            //    tree exists before writing; File(filesDir, name) safely stays under filesDir
+            //    because every key here already passed SaveBundle.sanitizeZipEntryName / the
+            //    flatten-to-basename path in readEntries, so it carries no ".." segments.
             for ((name, body) in saves) {
                 val target = File(filesDir, name)
                 originals[name] = if (target.isFile) target.readBytes() else null
                 replaced = true
+                target.parentFile?.mkdirs()
                 target.writeBytes(body)
             }
             return CommitResult(true, written = saves.size)

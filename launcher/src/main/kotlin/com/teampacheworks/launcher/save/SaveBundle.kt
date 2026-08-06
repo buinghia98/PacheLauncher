@@ -4,6 +4,7 @@ import com.teampacheworks.launcher.LauncherHost
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.Calendar
 import java.util.Locale
@@ -35,25 +36,86 @@ object SaveBundle {
 
     // ------------------------------------------------------------------ listing
 
-    /** Every bundle-eligible save file in [dir], sorted by name. Never throws. */
+    /**
+     * Every bundle-eligible save file in [dir], sorted by its path relative to [dir] (which is
+     * also its bare name when [com.teampacheworks.launcher.LauncherConfig.recursiveSaves] is off -
+     * the flat scan is unchanged bit-for-bit). Never throws.
+     */
     fun listSaveFiles(dir: File): List<File> = try {
-        (dir.listFiles() ?: emptyArray())
-            .filter { it.isFile && isSaveFileName(it.name) }
-            .sortedBy { it.name }
+        if (LauncherHost.config.recursiveSaves) listSaveFilesRecursive(dir)
+        else listSaveFilesFlat(dir)
     } catch (t: Throwable) {
         emptyList()
     }
 
+    private fun listSaveFilesFlat(dir: File): List<File> =
+        (dir.listFiles() ?: emptyArray())
+            .filter { it.isFile && isSaveFileName(it.name) }
+            .sortedBy { it.name }
+
     /**
-     * Matches [name] against [com.teampacheworks.launcher.LauncherConfig.savePatterns] (glob:
-     * `*`/`?`, case-insensitive) and rejects anything in
-     * [com.teampacheworks.launcher.LauncherConfig.saveExcludeNames].
+     * Walks the whole [dir] tree (design spec §5 gap). Skips symlinks (files and directories - a
+     * symlinked directory is simply never descended into, matching `Files.walk`'s default of not
+     * following links), any path component starting with `.` (dotfiles/dirs), `cloud.token`, and
+     * the launcher/cloud SharedPreferences xml file names - none of those are ever save data even
+     * if a loose [com.teampacheworks.launcher.LauncherConfig.savePatterns] glob would otherwise
+     * match them.
+     */
+    private fun listSaveFilesRecursive(dir: File): List<File> {
+        if (!dir.isDirectory) return emptyList()
+        val root = dir.toPath()
+        val result = ArrayList<File>()
+        Files.walk(root).use { stream ->
+            stream.forEach { path ->
+                if (path == root) return@forEach
+                if (Files.isSymbolicLink(path)) return@forEach
+                if (!Files.isRegularFile(path)) return@forEach
+                val rel = root.relativize(path)
+                for (i in 0 until rel.nameCount) {
+                    if (rel.getName(i).toString().startsWith(".")) return@forEach
+                }
+                val relPath = rel.toString().replace('\\', '/')
+                val file = path.toFile()
+                if (isHardSkip(file.name)) return@forEach
+                if (isSaveFileName(relPath)) result.add(file)
+            }
+        }
+        return result.sortedBy { relativePath(dir, it) }
+    }
+
+    /** Never treated as save data, whatever [com.teampacheworks.launcher.LauncherConfig.savePatterns] says. */
+    private fun isHardSkip(basename: String): Boolean {
+        val config = LauncherHost.config
+        val lower = basename.lowercase(Locale.US)
+        return lower == "cloud.token" ||
+            lower == "${config.prefsName}.xml".lowercase(Locale.US) ||
+            lower == "${config.cloudPrefsName}.xml".lowercase(Locale.US)
+    }
+
+    /** [file]'s path relative to [root], forward-slash normalized. */
+    fun relativePath(root: File, file: File): String =
+        root.toPath().relativize(file.toPath()).toString().replace('\\', '/')
+
+    /**
+     * Matches [name] - a bare file name, or (when
+     * [com.teampacheworks.launcher.LauncherConfig.recursiveSaves] is on) a `/`-normalized path
+     * relative to `filesDir` - against
+     * [com.teampacheworks.launcher.LauncherConfig.savePatterns] (glob: `*`/`?`, case-insensitive)
+     * and rejects anything in [com.teampacheworks.launcher.LauncherConfig.saveExcludeNames]. Both
+     * the bare name and the full relative path are checked against patterns and exclusions, so a
+     * flat name (no `/`) behaves exactly as it always has.
      */
     fun isSaveFileName(name: String): Boolean {
         val config = LauncherHost.config
-        val lower = name.lowercase(Locale.US)
-        if (lower in config.saveExcludeNames) return false
-        return config.savePatterns.any { globMatches(it.lowercase(Locale.US), lower) }
+        val normalized = name.replace('\\', '/').trimStart('/')
+        val basename = normalized.substringAfterLast('/')
+        val lowerBase = basename.lowercase(Locale.US)
+        val lowerPath = normalized.lowercase(Locale.US)
+        if (lowerBase in config.saveExcludeNames || lowerPath in config.saveExcludeNames) return false
+        return config.savePatterns.any { pattern ->
+            val p = pattern.lowercase(Locale.US)
+            globMatches(p, lowerBase) || globMatches(p, lowerPath)
+        }
     }
 
     /** `*` matches any run of characters (including none); `?` matches exactly one. */
@@ -91,9 +153,21 @@ object SaveBundle {
         return out.toByteArray()
     }
 
-    /** Deterministic bundle of every save file currently in [dir]. */
-    fun createBundleFromDir(dir: File): ByteArray =
-        createBundle(listSaveFiles(dir).associate { it.name to it.readBytes() })
+    /**
+     * Deterministic bundle of every save file currently in [dir]. Entry names are relative paths
+     * (forward-slash) under [dir] when
+     * [com.teampacheworks.launcher.LauncherConfig.recursiveSaves] is on, bare names otherwise -
+     * identical to what [listSaveFiles] just walked, so the two never disagree.
+     */
+    fun createBundleFromDir(dir: File): ByteArray {
+        val recursive = LauncherHost.config.recursiveSaves
+        val entries = LinkedHashMap<String, ByteArray>()
+        for (f in listSaveFiles(dir)) {
+            val key = if (recursive) relativePath(dir, f) else f.name
+            entries[key] = f.readBytes()
+        }
+        return createBundle(entries)
+    }
 
     // ------------------------------------------------------------------ reading
 
@@ -107,20 +181,29 @@ object SaveBundle {
 
     /**
      * Reads every entry of a zip into memory. Returns null when [bytes] is not a readable zip.
-     * Directory entries are skipped; names are flattened to their basename so a bundle produced
-     * by some other tool cannot write outside the save directory (zip-slip).
+     * Directory entries are skipped.
+     *
+     * When [com.teampacheworks.launcher.LauncherConfig.recursiveSaves] is off, names are flattened
+     * to their basename exactly as before - existing flat-bundle behavior (and therefore its
+     * SHA-256 identity) is unchanged bit-for-bit. When it is on, entries keep their path relative to
+     * the save root, but every entry name is run through [sanitizeZipEntryName] first: any entry
+     * whose name is absolute, escapes the root via a `..` segment, or has a dotfile/dir component is
+     * dropped rather than trusted (zip-slip protection - a hostile or corrupt bundle can never write
+     * outside `filesDir` on import).
      */
     fun readEntries(bytes: ByteArray): Map<String, ByteArray>? {
         if (!looksLikeZip(bytes)) return null
+        val recursive = LauncherHost.config.recursiveSaves
         return try {
             val result = LinkedHashMap<String, ByteArray>()
             ZipInputStream(ByteArrayInputStream(bytes)).use { zin ->
                 while (true) {
                     val e = zin.nextEntry ?: break
                     if (e.isDirectory) { zin.closeEntry(); continue }
-                    val base = e.name.substringAfterLast('/').substringAfterLast('\\')
-                    if (base.isEmpty()) { zin.closeEntry(); continue }
-                    result[base] = zin.readBytes()
+                    val key = if (recursive) sanitizeZipEntryName(e.name)
+                    else e.name.substringAfterLast('/').substringAfterLast('\\')
+                    if (key.isNullOrEmpty()) { zin.closeEntry(); continue }
+                    result[key] = zin.readBytes()
                     zin.closeEntry()
                 }
             }
@@ -128,6 +211,26 @@ object SaveBundle {
         } catch (t: Throwable) {
             null
         }
+    }
+
+    /**
+     * Normalizes a zip entry name to a safe, `/`-relative path, or null if it must be rejected:
+     * absolute paths (leading `/`, or a Windows drive like `C:`), any `.`/`..` segment, or any
+     * dotfile/dir segment (matching the same hidden-entry rule the recursive walk applies on
+     * export). This is the only thing standing between an untrusted bundle and zip-slip.
+     */
+    fun sanitizeZipEntryName(rawName: String): String? {
+        val normalized = rawName.replace('\\', '/')
+        if (normalized.isEmpty()) return null
+        if (normalized.startsWith('/')) return null
+        if (normalized.length >= 2 && normalized[1] == ':') return null // C:\... style
+        val parts = normalized.split('/').filter { it.isNotEmpty() }
+        if (parts.isEmpty()) return null
+        for (part in parts) {
+            if (part == "." || part == "..") return null
+            if (part.startsWith(".")) return null
+        }
+        return parts.joinToString("/")
     }
 
     // --------------------------------------------------------------- validation
