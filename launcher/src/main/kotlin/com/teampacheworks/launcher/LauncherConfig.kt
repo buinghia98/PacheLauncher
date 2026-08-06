@@ -2,6 +2,7 @@ package com.teampacheworks.launcher
 
 import android.app.Activity
 import android.content.Intent
+import com.teampacheworks.launcher.assets.AssetManagementConfig
 
 /**
  * One aspect-ratio choice offered on the Settings card (ui-sync design spec, §Main screen).
@@ -46,7 +47,17 @@ data class AspectOption(val value: String, val label: String)
  *   `filesDir` are part of a save bundle. `?` matches one character, `*` matches any run of
  *   characters; matching is case-insensitive. See [com.teampacheworks.launcher.save.SaveBundle].
  * @param saveExcludeNames Exact file names (case-insensitive) that are never bundled even if they
- *   match [savePatterns] - typically machine-local settings files that live alongside saves.
+ *   match [savePatterns] - typically machine-local settings files that live alongside saves. Checked
+ *   against both the bare file name and, when [recursiveSaves] is on, the full path relative to
+ *   `filesDir` (forward-slash normalized).
+ * @param recursiveSaves When false (default - **zero behavior change** for existing games), save
+ *   discovery is a flat, single-level scan of `filesDir`, exactly as it always was. When true,
+ *   [com.teampacheworks.launcher.save.SaveBundle] walks the entire `filesDir` tree; [savePatterns]/
+ *   [saveExcludeNames] are matched against both each file's bare name and its path relative to
+ *   `filesDir`, and zip entries are stored under that relative path (instead of flattened to a bare
+ *   name) so same-named files at different depths - e.g. a per-profile `variable-storage.json` -
+ *   don't collide. Turn this on when a game's save data isn't sitting directly in `filesDir` (see
+ *   docs/INTEGRATION.md "recursiveSaves").
  * @param exportFilenamePrefix Prefix for the SAF export file name; the suggested name is
  *   `"<exportFilenamePrefix><yyyyMMdd-HHmmss>.zip"`, e.g. "mygame-save-".
  * @param aspectOptions The Settings card's aspect-ratio dropdown, in display order. The game
@@ -92,10 +103,12 @@ data class LauncherConfig(
     val cloudTokenMagic: String = "PACHE-CLOUD-TOKEN-1\n",
     val savePatterns: List<String>,
     val saveExcludeNames: Set<String> = emptySet(),
+    val recursiveSaves: Boolean = false,
     val exportFilenamePrefix: String = "${cloudAppId}-save-",
     val aspectOptions: List<AspectOption> = LauncherContract.DEFAULT_ASPECT_OPTIONS,
     val defaultAspectValue: String = LauncherContract.ASPECT_16_9,
     val gameOptions: List<LauncherOption> = emptyList(),
+    val assetManagement: AssetManagementConfig? = null,
     val gameActivityClass: Class<out Activity>,
     val buildGameIntentExtras: (Intent, aspect: String, fps: Boolean, debug: Boolean) -> Unit = { _, _, _, _ -> },
     val appVersionName: String = "dev",
