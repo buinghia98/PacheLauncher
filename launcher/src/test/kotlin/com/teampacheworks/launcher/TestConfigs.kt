@@ -11,7 +11,8 @@ import android.app.Activity
 fun installTestConfig(
     cloudAppId: String = "testgame",
     savePatterns: List<String> = listOf("*.fasta"),
-    saveExcludeNames: Set<String> = setOf("device_config.txt", "devkey.txt")
+    saveExcludeNames: Set<String> = setOf("device_config.txt", "devkey.txt"),
+    recursiveSaves: Boolean = false
 ) {
     LauncherHost.install(
         LauncherConfig(
@@ -22,6 +23,7 @@ fun installTestConfig(
             cloudAppId = cloudAppId,
             savePatterns = savePatterns,
             saveExcludeNames = saveExcludeNames,
+            recursiveSaves = recursiveSaves,
             gameActivityClass = Activity::class.java,
             iconRes = 0
         )
