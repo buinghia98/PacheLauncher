@@ -16,33 +16,54 @@ ScrollView -> FrameLayout -> LinearLayout root (vertical, width = 560dp FIXED, c
 1. Header row (horizontal, centerVertical):
    ImageView 48x48dp (LauncherConfig.iconRes), marginEnd 14dp
    + column: gameTitle      26sp bold, colorPrimary
-             gameSubtitle   13sp, textColorSecondary
+             gameSubtitle   13sp, textColorSecondary. Blank = no line at all. A host may
+                            instead supply LauncherConfig.gameSubtitleProvider, re-evaluated
+                            on every resume, for a line reporting live state (which game build
+                            is installed, whether the next launch is modded); it falls back to
+                            the static gameSubtitle when it returns null/blank or throws.
 2. PLAY: MaterialButton, filled (the only filled control on the screen), "PLAY", 20sp bold,
    MATCH_PARENT x 64dp fixed height, margins (0, 20dp, 0, 8dp).
 3. LinearProgressIndicator (GONE by default) + status line (GONE) + error card (GONE) — kept in
    the layout for structural parity with hosts that add a first-run install step. A host that has
    nothing to install leaves these three untouched.
-4. Card "Settings" (MaterialCardView, default corner radius, marginTop 12dp; inner LinearLayout
+4. Card "Video settings" (MaterialCardView, default corner radius, marginTop 12dp; inner LinearLayout
    padding 16/12/16/12dp):
-   - Header "Settings", 16sp bold, colorPrimary, marginBottom 10dp
+   - Header "Video settings", 16sp bold, colorPrimary, marginBottom 10dp
    - Aspect ratio label (14sp) + a plain framework `Spinner` (NOT an exposed dropdown —
      `android.R.layout.simple_spinner_item` / `simple_spinner_dropdown_item`), then an 11sp hint
      line
    - Zero or more host option rows (`LauncherConfig.gameOptions`), each an identical
      label(14sp, marginBottom 2dp) + plain `Spinner` (marginBottom 8dp) + hint(11sp,
      marginBottom 12dp) triple, in list order — see "Host options" below
-   - MaterialSwitch "Debug logging" + 11sp hint (Debug logging comes BEFORE Show FPS)
+   - Asset quality label + `Spinner` + 11sp hint, when the host configured `assetManagement`
    - MaterialSwitch "Show FPS" + 11sp hint
-   - MaterialButton OUTLINED "Export logs"
-5. Card "Save & Cloud" (same geometry as the Settings card):
-   - Header "Save & Cloud"
+5. Card "Controls" (same geometry) — GONE unless at least one button lands on it:
+   - Header "Controls" (marginBottom **2dp**, because each button below carries its own 8dp top
+     margin and the two together make the standard 10dp)
+   - One OUTLINED navigation button per `LauncherConfig.optionScreens` entry that has options
+     pointing at it, in list order — see "Host options" below
+6. Card "Manage game data" (same geometry) — everything that reads or writes what is on the device,
+   in this order:
+   - Header "Manage game data"
+   - OUTLINED "Manage assets" (GONE unless `assetManagement` is configured) + its 11sp hint
+   - OUTLINED "Manage mods" (GONE unless `modManagement` is configured, marginBottom 8dp)
    - OUTLINED "Manage saves" (marginBottom 8dp)
    - OUTLINED "Cloud sync (GitHub Gist)" (marginBottom 8dp)
    - 11sp notice line
-6. Footer: `LauncherConfig.footerText`, 11sp secondary, gravity center, margins (0, 20dp, 0, 4dp)
+7. Card "Debug" (same geometry) — the controls that exist to diagnose a build, not to play it:
+   - Header "Debug"
+   - MaterialSwitch "Debug logging" + 11sp hint
+   - OUTLINED "Export logs"
+   - OUTLINED "Load Custom driver" (GONE unless `gpuDriverManagement` is configured)
+8. Footer: `LauncherConfig.footerText`, 11sp secondary, gravity center, margins (0, 20dp, 0, 4dp)
 
-Every row inside the two cards that has an explanatory line under it uses **11sp** for that line —
-this is the one typographic rule that is easy to get wrong when adding a new row.
+Each card is about ONE subject. That is the whole reason there are four rather than the original
+two: a single "Settings" card that mixed the aspect ratio, the log exporter, the GPU driver picker
+and the save tools was a list of unrelated knobs a player had to read in full to find one. A card
+whose contents are all optional is hidden entirely rather than shown as a header over nothing.
+
+Every row inside a card that has an explanatory line under it uses **11sp** for that line — this is
+the one typographic rule that is easy to get wrong when adding a new row.
 
 PLAY is the one filled button on the screen; everything else that acts as a button is outlined.
 There is no background art anywhere in the layout.
@@ -88,14 +109,39 @@ There is no background art anywhere in the layout.
 - Prose uses `--` in place of an em dash wherever the string lives in XML (matches the existing
   strings; keep new ones consistent).
 
+## Hint text policy
+
+**When you add a new button or option, do NOT add hint text on your own initiative.** Add a hint
+only when one of these is true:
+
+1. The user explicitly asked for guidance text on that control, or
+2. the control's function is genuinely confusing — and in that case **confirm the wording with the
+   user before adding it**.
+
+The default for a new control is therefore *no hint*. A label that needs a paragraph under it to be
+understood is usually a badly named label, and the fix is the label. Unrequested hints are also how
+this screen accumulates text nobody reads: every extra 11sp line pushes the controls a player
+actually came for further down the column, and the cards stop being scannable.
+
+The mechanism already assumes this. Every optional line goes through `OptionRows.goneIfBlank`, so a
+host empties a string in its own `strings.xml` and the line disappears *along with its spacing* —
+emptying a hint is a supported configuration, not a layout bug to work around. Where a hint does
+exist, it is still 11sp (see "Main screen"), and it still takes any product or folder name as a
+format argument rather than hardcoding one.
+
 ## Host options
 
-A port that needs one more "pick one of N" knob on the Settings card declares a `LauncherOption`
+A port that needs one more "pick one of N" knob on the Video settings card declares a `LauncherOption`
 in `LauncherConfig.gameOptions` instead of forking this layout. The rows are built by
 `LauncherActivity` into `@id/pl_options_container` (which sits between the aspect hint and the
-Debug logging switch) with the aspect row's geometry hardcoded, so a host cannot drift from this
+Show FPS switch) with the aspect row's geometry hardcoded, so a host cannot drift from this
 spec by declaring one: 14sp label, plain framework `Spinner` (never an exposed dropdown), 11sp
-hint. A host declaring none gets a zero-height container and a Settings card identical to before.
+hint. A host declaring none gets a zero-height container and a Video settings card identical to
+before.
+
+A `LauncherOptionScreen` is drawn on the **Controls** card instead: one navigation button per
+screen, in `@id/pl_option_screens_container`, and the whole card is GONE when no declared screen
+has options pointing at it.
 
 Labels and choice labels follow the same sentence-case rule as every other string here, and live
 in the host app (they name a game-specific concept, so they must not be added to this library's

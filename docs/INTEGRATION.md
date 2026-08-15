@@ -78,7 +78,7 @@ have stability requirements once real players have data riding on them.
 ## 2b. (Optional) extra Settings-card options
 
 Anything your port needs as a "pick one of N" setting goes in `LauncherConfig.gameOptions` — the
-library renders each one as a label + `Spinner` + hint row on the Settings card (docs/UI-SPEC.md
+library renders each one as a label + `Spinner` + hint row on the Video settings card (docs/UI-SPEC.md
 "Host options"), persists the selection across launches, and hands the chosen `value` to your game
 Activity. It is deliberately engine-neutral: the library never learns what the value means.
 
@@ -106,7 +106,7 @@ val fpsLimit = intent.getStringExtra(LauncherContract.extraNameFor("fps_limit"))
 
 A **boolean** knob is just a two-choice option — give it `Off`/`On` labels over stable values
 (`"0"`/`"1"`, or whatever your engine reads) and let it render as a two-item `Spinner` like any
-other row. There is intentionally no separate switch/toggle option kind: the Settings card is a
+other row. There is intentionally no separate switch/toggle option kind: the Video settings card is a
 uniform column of label→`Spinner`→hint rows (docs/UI-SPEC.md "Host options"), and a two-item
 dropdown expresses a boolean without a second render path or a broken visual rhythm. The Hades II
 port's "Async GPU submit" row is exactly this pattern.
@@ -299,6 +299,22 @@ real backups. `CloudBackupActivity` is fully self-contained.
 - `android:label`, `android:icon`, and the launch `intent-filter` — these are static manifest
   attributes the host app owns; the library's manifest only ever supplies `exported="false"`
   defaults that a host overrides via manifest merging.
+- **Every naming, attribution and legal line.** The publisher a port is *not* affiliated with, the
+  rights notice, the redistribution terms: these name a specific company and a specific game, so
+  they are host copy fed in through `LauncherConfig.footerText` (and `gameTitle` / `gameSubtitle` /
+  `appLabel` for the rest of the identity). The library ships only the neutral default
+  `"Personal build, not for distribution"`, and **no string in `launcher/`'s `strings.xml` may ever
+  name a game, a studio, or a package id** — see UI-SPEC.md "Strings and capitalization policy".
+  A host that needs a disclaimer writes its own, e.g.
+
+  ```xml
+  <!-- in the HOST app's strings.xml, not this library's -->
+  <string name="my_footer">Unofficial port. Personal use only. Not affiliated with %1$s.</string>
+  ```
+
+  ```kotlin
+  footerText = getString(R.string.my_footer, getString(R.string.my_publisher)),
+  ```
 
 ## 9. Sanity-check before shipping
 
