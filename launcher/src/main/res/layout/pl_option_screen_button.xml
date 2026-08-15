@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One navigation button for a LauncherOptionScreen, inflated once per screen by LauncherActivity
+  (and once for a screen's optional action by OptionScreenActivity).
+
+  It exists as a layout rather than a `MaterialButton(this)` in code because the outlined Material 3
+  style cannot be applied to a view constructed programmatically without a ContextThemeWrapper, and
+  the buttons above it in the same column (Manage mods, GPU drivers) are XML with that style. Same
+  style, same file, no drift.
+-->
+<com.google.android.material.button.MaterialButton
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Material3.Button.OutlinedButton"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp" />
