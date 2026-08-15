@@ -252,7 +252,6 @@ class GistClient(appVersion: String, userAgentProduct: String = "PacheLauncher")
                 .header("Accept", "application/vnd.github+json")
                 .header("X-GitHub-Api-Version", API_VERSION)
                 .header("User-Agent", userAgent)
-                .header("Accept-Encoding", "gzip")
         )
     }
 

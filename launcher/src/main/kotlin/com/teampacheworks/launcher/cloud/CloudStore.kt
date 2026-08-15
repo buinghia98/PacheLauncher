@@ -82,7 +82,24 @@ class CloudStore(
      */
     fun discoverGist(): String? {
         val t = requireConfigured()
-        state.gistId?.let { return it } // local state always wins; never second-guess an adopt
+        state.gistId?.let { id ->
+            /* Older launcher builds could claim any gist that merely contained a file named
+             * 01-manifest.json because GitHub's list endpoint normally omits file content. Do not
+             * carry that bad adoption forward: verify the manifest discriminator before allowing
+             * an existing id to win. Network failures preserve the id; a proven mismatch does not. */
+            try {
+                val content = client.getSnapshot(t, id).files[CloudManifest.FILE_NAME]?.content
+                if (CloudManifest.isOurManifest(content)) return id
+                LauncherLog.write(
+                    "cloud",
+                    "stored gist ${CloudException.maskGistId(id)} belongs to another app; forgetting it"
+                )
+                state.forgetGist()
+            } catch (ex: CloudException) {
+                if (ex.failure != CloudFailure.NotFound) return id
+                state.forgetGist()
+            }
+        }
 
         val gists = try {
             client.listMyGists(t, DISCOVERY_MAX_PAGES)
@@ -93,11 +110,20 @@ class CloudStore(
         }
 
         val ours = gists.filter { g ->
-            val mf = g.files[CloudManifest.FILE_NAME] ?: return@filter false
-            // The listing endpoint truncates content; when it is absent, presence of the manifest
-            // file name is the best signal available without an extra request per gist.
-            val content = mf.content
-            if (content == null) true else CloudManifest.isOurManifest(content)
+            val listed = g.files[CloudManifest.FILE_NAME] ?: return@filter false
+            /* GET /gists normally lists file metadata without content. Presence of the generic
+             * manifest filename is not ownership: fetch the candidate and verify its `app` field.
+             * This is what stops one port from adopting a different port's gist. */
+            val content = if (!listed.truncated && listed.content != null) listed.content else try {
+                client.getSnapshot(t, g.id).files[CloudManifest.FILE_NAME]?.content
+            } catch (ex: CloudException) {
+                LauncherLog.write(
+                    "cloud",
+                    "discovery: could not verify ${CloudException.maskGistId(g.id)} (${ex.failure})"
+                )
+                null
+            }
+            CloudManifest.isOurManifest(content)
         }.map { g ->
             GistCandidate(
                 id = g.id,
