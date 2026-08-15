@@ -19,6 +19,7 @@ import com.teampacheworks.launcher.save.SaveBundle
 import com.teampacheworks.launcher.save.SaveImporter
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
+import java.io.File
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -36,6 +37,7 @@ import java.util.concurrent.Executors
 class SaveManagementActivity : AppCompatActivity() {
 
     private lateinit var config: LauncherConfig
+    private lateinit var saveDir: File
 
     private lateinit var listGroup: LinearLayout
     private lateinit var summary: TextView
@@ -62,6 +64,7 @@ class SaveManagementActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         config = LauncherHost.config
+        saveDir = config.resolveSaveDirectory(this)
         setContentView(R.layout.activity_save_management)
 
         findViewById<MaterialToolbar>(R.id.pl_save_toolbar)
@@ -95,7 +98,7 @@ class SaveManagementActivity : AppCompatActivity() {
     // ------------------------------------------------------------------ listing
 
     private fun refresh() {
-        val files = SaveBundle.listSaveFiles(filesDir)
+        val files = SaveBundle.listSaveFiles(saveDir)
         listGroup.removeAllViews()
         val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
         for (f in files) {
@@ -108,7 +111,7 @@ class SaveManagementActivity : AppCompatActivity() {
             summary.text = getString(R.string.pl_saves_count, files.size)
             exportButton.isEnabled = true
         }
-        LauncherLog.d("save") { "listed ${files.size} save file(s) in $filesDir" }
+        LauncherLog.d("save") { "listed ${files.size} save file(s) in $saveDir" }
     }
 
     private fun row(label: String, value: String): View {
@@ -139,7 +142,7 @@ class SaveManagementActivity : AppCompatActivity() {
         setBusy(true)
         io.execute {
             val result = try {
-                val bundle = SaveBundle.createBundleFromDir(filesDir)
+                val bundle = SaveBundle.createBundleFromDir(saveDir)
                 val v = SaveBundle.validate(bundle)
                 if (!v.ok) {
                     Result.failure(IllegalStateException(v.error))
@@ -208,7 +211,7 @@ class SaveManagementActivity : AppCompatActivity() {
     }
 
     private fun confirmImport(ready: SaveImporter.Prepared.Ready) {
-        val existing = SaveBundle.listSaveFiles(filesDir).size
+        val existing = SaveBundle.listSaveFiles(saveDir).size
         val body = StringBuilder()
         body.append(getString(R.string.pl_import_confirm_body, ready.validation.saveNames.size, existing))
         body.append("\n\n").append(ready.validation.saveNames.joinToString("\n"))
@@ -230,7 +233,7 @@ class SaveManagementActivity : AppCompatActivity() {
     private fun commitImport(ready: SaveImporter.Prepared.Ready) {
         setBusy(true)
         io.execute {
-            val result = SaveImporter.commit(filesDir, cacheDir, ready)
+            val result = SaveImporter.commit(saveDir, cacheDir, ready)
             ui.post {
                 setBusy(false)
                 refresh()
@@ -268,7 +271,7 @@ class SaveManagementActivity : AppCompatActivity() {
 
     private fun setBusy(b: Boolean) {
         busy.visibility = if (b) View.VISIBLE else View.GONE
-        exportButton.isEnabled = !b && SaveBundle.listSaveFiles(filesDir).isNotEmpty()
+        exportButton.isEnabled = !b && SaveBundle.listSaveFiles(saveDir).isNotEmpty()
         importButton.isEnabled = !b
     }
 

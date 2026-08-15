@@ -30,6 +30,7 @@ import com.teampacheworks.launcher.cloud.GitHubToken
 import com.teampacheworks.launcher.cloud.TokenStore
 import com.teampacheworks.launcher.log.LauncherLog
 import com.teampacheworks.launcher.save.SaveBundle
+import java.io.File
 import java.util.concurrent.Executors
 
 /**
@@ -48,6 +49,7 @@ import java.util.concurrent.Executors
 class CloudBackupActivity : AppCompatActivity() {
 
     private lateinit var config: LauncherConfig
+    private lateinit var saveDir: File
     private lateinit var tokenStore: TokenStore
     private lateinit var state: CloudState
 
@@ -72,6 +74,7 @@ class CloudBackupActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         config = LauncherHost.config
+        saveDir = config.resolveSaveDirectory(this)
         setContentView(R.layout.activity_cloud_backup)
 
         findViewById<MaterialToolbar>(R.id.pl_cloud_toolbar).setNavigationOnClickListener { finish() }
@@ -124,7 +127,7 @@ class CloudBackupActivity : AppCompatActivity() {
         val token = tokenStore.tryLoad() ?: return
         val c = GistClient(config.appVersionName, config.appLabel)
         client = c
-        store = CloudStore(c, state, filesDir, cacheDir).also { it.setToken(token) }
+        store = CloudStore(c, state, saveDir, cacheDir).also { it.setToken(token) }
     }
 
     // ------------------------------------------------------------------ render
@@ -245,7 +248,7 @@ class CloudBackupActivity : AppCompatActivity() {
                     val saved = tokenStore.save(token)
                     state.login = login
                     c.tokenExpiration?.let { state.tokenExpiration = it }
-                    val s = CloudStore(c, state, filesDir, cacheDir).also { it.setToken(token) }
+                    val s = CloudStore(c, state, saveDir, cacheDir).also { it.setToken(token) }
                     // Adopt an existing gist right away so a second device never creates a duplicate.
                     try { s.discoverGist() } catch (ex: CloudException) {
                         LauncherLog.write("cloud", "connect: discovery failed (${ex.failure})")
@@ -334,7 +337,7 @@ class CloudBackupActivity : AppCompatActivity() {
 
     private fun promptUpload() {
         val s = store ?: return
-        val saves = SaveBundle.listSaveFiles(filesDir)
+        val saves = SaveBundle.listSaveFiles(saveDir)
         if (saves.isEmpty()) {
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.pl_cloud_nothing_to_upload)
@@ -376,7 +379,7 @@ class CloudBackupActivity : AppCompatActivity() {
 
     private fun confirmDownload(slot: CloudSlot, skipHashCheck: Boolean) {
         val s = store ?: return
-        val existing = SaveBundle.listSaveFiles(filesDir).size
+        val existing = SaveBundle.listSaveFiles(saveDir).size
         runBusy({
             // The confirm callback runs on the io thread; the dialog has to be posted to the UI
             // thread and waited on. A confirmation that could not be shown must read as "no":
@@ -413,7 +416,13 @@ class CloudBackupActivity : AppCompatActivity() {
                     result.error?.contains("checksum", ignoreCase = true) == true -> {
                     MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.pl_cloud_download_refused)
-                        .setMessage(result.error + "\n\n" + getString(R.string.pl_cloud_validate_only_body))
+                        // An emptied body must not leave the blank line its separator would add.
+                        .setMessage(
+                            getString(R.string.pl_cloud_validate_only_body)
+                                .takeIf { it.isNotBlank() }
+                                ?.let { result.error + "\n\n" + it }
+                                ?: result.error
+                        )
                         .setNegativeButton(android.R.string.cancel, null)
                         .setPositiveButton(R.string.pl_cloud_validate_only) { _, _ ->
                             confirmDownload(slot, skipHashCheck = true)
