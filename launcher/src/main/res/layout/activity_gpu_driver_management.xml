@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="24dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/pl_manage_gpu_drivers" android:textSize="24sp" android:textStyle="bold" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:text="@string/pl_gpu_driver_manage_hint"
+            android:textColor="?android:attr/textColorSecondary" android:textSize="12sp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:text="@string/pl_gpu_driver_installed"
+            android:textSize="14sp" android:textStyle="bold" />
+        <Spinner android:id="@+id/pl_gpu_driver_manage_spinner" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="4dp" />
+        <TextView android:id="@+id/pl_gpu_driver_details" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="12dp" android:textIsSelectable="true"
+            android:textColor="?android:attr/textColorSecondary" android:textSize="12sp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/pl_gpu_driver_make_default"
+            style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="12dp"
+            android:text="@string/pl_gpu_driver_make_default" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/pl_gpu_driver_import"
+            style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/pl_gpu_driver_import" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/pl_gpu_driver_delete"
+            style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/pl_gpu_driver_delete" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/pl_gpu_driver_back"
+            style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/pl_back" />
+    </LinearLayout>
+</ScrollView>
