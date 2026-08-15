@@ -22,6 +22,10 @@ import com.google.android.material.snackbar.Snackbar
 import com.teampacheworks.launcher.log.CrashReporter
 import com.teampacheworks.launcher.log.LauncherLog
 import com.teampacheworks.launcher.log.LogExport
+import com.teampacheworks.launcher.assets.AssetInstallState
+import com.teampacheworks.launcher.assets.AssetStorage
+import com.teampacheworks.launcher.gpu.GpuDriverStorage
+import com.teampacheworks.launcher.mods.ModEnabledStore
 
 /**
  * The shared launcher main screen (docs/UI-SPEC.md "Main screen").
@@ -54,6 +58,10 @@ class LauncherActivity : AppCompatActivity() {
      * behind a position is whatever the config says it is.
      */
     private var optionIndices = IntArray(0)
+    private var assetSpinner: Spinner? = null
+    private var assetState: AssetInstallState? = null
+    private var assetValue: String? = null
+    private var suppressAssetSelection = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,10 +72,50 @@ class LauncherActivity : AppCompatActivity() {
 
         findViewById<ImageView>(R.id.pl_icon).setImageResource(config.iconRes)
         findViewById<TextView>(R.id.pl_title).text = config.gameTitle
-        findViewById<TextView>(R.id.pl_subtitle).text = config.gameSubtitle
-        findViewById<TextView>(R.id.pl_footer).text = config.footerText
+        // Subtitle and footer are host copy, and a host that supplies none gets no line rather than
+        // an empty one -- the same rule every hint below follows (OptionRows "blank text is no
+        // element").
+        refreshSubtitle()
+        OptionRows.goneIfBlank(findViewById(R.id.pl_footer), config.footerText)
 
         aspectSpinner = findViewById(R.id.pl_aspect_spinner)
+        if (!config.showAspectRatio) {
+            findViewById<View>(R.id.pl_aspect_label).visibility = View.GONE
+            aspectSpinner.visibility = View.GONE
+            findViewById<View>(R.id.pl_aspect_hint).visibility = View.GONE
+        } else {
+            OptionRows.goneIfBlank(
+                findViewById(R.id.pl_aspect_hint), getText(R.string.pl_aspect_hint), aspectSpinner
+            )
+        }
+
+        // The four hint/notice lines that live in the layout XML rather than in a built row. Each
+        // hands its bottom margin to the control above it when the host empties the string, so the
+        // card stays a card instead of growing a gap where the line was.
+        // Where the logs land is host-configured, so the line naming that folder is formatted here
+        // rather than being a static resource that would have to name one port's folder.
+        OptionRows.goneIfBlank(
+            findViewById(R.id.pl_debug_logging_hint),
+            getString(R.string.pl_debug_logging_hint, config.downloadsFolderName),
+            findViewById(R.id.pl_debug_switch)
+        )
+        OptionRows.goneIfBlank(
+            findViewById(R.id.pl_show_fps_hint), getText(R.string.pl_show_fps_hint),
+            findViewById(R.id.pl_fps_switch)
+        )
+        // The assets hint describes the Manage assets BUTTON, so it follows that button's fate: a
+        // host with no asset management gets neither, rather than a paragraph about a control that
+        // is not on the card.
+        if (config.assetManagement == null) {
+            findViewById<View>(R.id.pl_assets_hint).visibility = View.GONE
+        } else {
+            OptionRows.goneIfBlank(
+                findViewById(R.id.pl_assets_hint), getText(R.string.pl_manage_assets_hint)
+            )
+        }
+        OptionRows.goneIfBlank(
+            findViewById(R.id.pl_save_and_cloud_notice), getText(R.string.pl_save_and_cloud_notice)
+        )
         fpsSwitch = findViewById(R.id.pl_fps_switch)
         debugSwitch = findViewById(R.id.pl_debug_switch)
         exportLogsButton = findViewById(R.id.pl_export_logs_button)
@@ -99,7 +147,9 @@ class LauncherActivity : AppCompatActivity() {
         // the next layout pass, but persist() writes every control at once, so building the
         // option rows before the switches hold their persisted values is a needless way to make
         // that ordering load-bearing.
-        buildOptionRows(findViewById(R.id.pl_options_container))
+        val optionsContainer = findViewById<ViewGroup>(R.id.pl_options_container)
+        buildOptionRows(optionsContainer)
+        buildAssetQualityRow(optionsContainer)
         fpsSwitch.setOnCheckedChangeListener { _, _ -> persist() }
         debugSwitch.setOnCheckedChangeListener { _, _ -> persist() }
 
@@ -109,6 +159,33 @@ class LauncherActivity : AppCompatActivity() {
             startActivity(Intent(this, SaveManagementActivity::class.java))
         }
         exportLogsButton.setOnClickListener { onExportLogsClicked() }
+        // The Manage game data card itself is unconditional now (Manage saves and Cloud sync are
+        // always there); only the two host-configured buttons on it come and go.
+        config.assetManagement?.let {
+            findViewById<MaterialButton>(R.id.pl_manage_assets_button).apply {
+                visibility = View.VISIBLE
+                setOnClickListener {
+                    startActivity(Intent(this@LauncherActivity, AssetManagementActivity::class.java))
+                }
+            }
+        }
+        config.gpuDriverManagement?.let {
+            findViewById<MaterialButton>(R.id.pl_manage_gpu_drivers_button).apply {
+                visibility = View.VISIBLE
+                setOnClickListener {
+                    startActivity(Intent(this@LauncherActivity, GpuDriverManagementActivity::class.java))
+                }
+            }
+        }
+        config.modManagement?.let {
+            findViewById<MaterialButton>(R.id.pl_manage_mods_button).apply {
+                visibility = View.VISIBLE
+                setOnClickListener {
+                    startActivity(Intent(this@LauncherActivity, ModManagementActivity::class.java))
+                }
+            }
+        }
+        buildOptionScreenButtons(findViewById(R.id.pl_option_screens_container))
 
         // Smoke-test / shortcut hook: the game activity is typically not exported, so
         // `adb shell am start` cannot target it directly. Launching the launcher with
@@ -135,55 +212,146 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     /**
-     * Materialises [LauncherConfig.gameOptions] into the Settings card. Built in code rather than
+     * Materialises [LauncherConfig.gameOptions] into the Video settings card. Built in code rather than
      * in the layout XML because the row count is per-host; the geometry, sizes and control types
      * are hardcoded to the aspect row's so a host cannot drift from docs/UI-SPEC.md by declaring
      * an option.
      */
     private fun buildOptionRows(container: ViewGroup) {
         optionIndices = IntArray(config.gameOptions.size)
-        val dp = resources.displayMetrics.density
         config.gameOptions.forEachIndexed { index, option ->
+            // Read for EVERY option, drawn only for the ones that stayed on the card: the launch
+            // handoff below is over the whole list, so an option living on a sub-screen still needs
+            // its current value in hand.
             optionIndices[index] = option.indexOf(prefs.getString(option.prefsKey, option.defaultValue))
+            if (screenFor(option) != null) return@forEachIndexed
 
-            container.addView(TextView(this).apply {
-                text = option.label
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { bottomMargin = (2 * dp).toInt() }
-            })
-
-            // Plain framework Spinner, exactly as the aspect row -- NOT an exposed dropdown.
-            container.addView(Spinner(this).apply {
-                adapter = ArrayAdapter(
-                    this@LauncherActivity,
-                    android.R.layout.simple_spinner_item,
-                    option.choices.map { it.label }
-                ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-                setSelection(optionIndices[index])
-                onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                    override fun onItemSelected(p: AdapterView<*>?, v: View?, position: Int, id: Long) {
-                        optionIndices[index] = position
-                        persist()
-                    }
-
-                    override fun onNothingSelected(parent: AdapterView<*>?) {}
-                }
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { bottomMargin = (8 * dp).toInt() }
-            })
-
-            container.addView(TextView(this).apply {
-                text = option.hint
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                secondaryTextColor()?.let { setTextColor(it) }
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { bottomMargin = (12 * dp).toInt() }
-            })
+            OptionRows.add(this, container, option, optionIndices[index]) { position ->
+                optionIndices[index] = position
+                persist()
+            }
         }
+    }
+
+    /** The sub-screen [option] was moved onto, or null while it is a Settings-card row. */
+    private fun screenFor(option: LauncherOption): LauncherOptionScreen? =
+        option.screenKey?.let { key -> config.optionScreens.firstOrNull { it.key == key } }
+
+    /**
+     * One outlined navigation button per [LauncherConfig.optionScreens] entry that actually has
+     * options pointing at it, in the same shape as the Manage mods / driver buttons on the other
+     * cards. A declared screen with no options is silently skipped rather than opening an empty
+     * page - and a host where that leaves NO buttons at all gets no Controls card, because a
+     * header over an empty column is worse than an absent section.
+     */
+    private fun buildOptionScreenButtons(container: ViewGroup) {
+        for (screen in config.optionScreens) {
+            if (config.gameOptions.none { it.screenKey == screen.key }) continue
+            val button = layoutInflater.inflate(R.layout.pl_option_screen_button, container, false)
+                as MaterialButton
+            button.text = screen.title
+            button.setOnClickListener {
+                startActivity(
+                    Intent(this, OptionScreenActivity::class.java)
+                        .putExtra(OptionScreenActivity.EXTRA_SCREEN_KEY, screen.key)
+                )
+            }
+            container.addView(button)
+        }
+        findViewById<View>(R.id.pl_controls_card).visibility =
+            if (container.childCount > 0) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * Re-reads the options that live on a sub-screen. Those are persisted by
+     * [OptionScreenActivity] directly, so without this the stale in-memory index would be written
+     * back over the player's change the next time anything on this screen calls [persist].
+     */
+    private fun refreshScreenOptionIndices() {
+        config.gameOptions.forEachIndexed { index, option ->
+            if (screenFor(option) == null) return@forEachIndexed
+            if (index < optionIndices.size) {
+                optionIndices[index] = option.indexOf(prefs.getString(option.prefsKey, option.defaultValue))
+            }
+        }
+    }
+
+    private fun buildAssetQualityRow(container: ViewGroup) {
+        val assets = config.assetManagement ?: return
+        val dp = resources.displayMetrics.density
+        val assetHint = getString(R.string.pl_asset_quality_hint)
+        assetValue = prefs.getString(assets.prefsKey, assets.defaultTierValue)
+            ?.takeIf { assets.tier(it) != null } ?: assets.defaultTierValue
+        container.addView(TextView(this).apply {
+            text = getString(R.string.pl_asset_quality)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        })
+        assetSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@LauncherActivity, android.R.layout.simple_spinner_item,
+                listOf(assets.highTier.label, assets.lowTier.label)
+            ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            setSelection(if (assetValue == assets.highTier.value) 0 else 1)
+            isEnabled = false // enabled after the background install scan completes
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: AdapterView<*>?, v: View?, position: Int, id: Long) {
+                    if (suppressAssetSelection) return
+                    val candidate = if (position == 0) assets.highTier.value else assets.lowTier.value
+                    val scanned = assetState ?: return
+                    if (!scanned.tierInstalled(candidate, assets)) {
+                        Toast.makeText(this@LauncherActivity, R.string.pl_asset_tier_missing, Toast.LENGTH_LONG).show()
+                        showAssetSelection(assetValue ?: assets.defaultTierValue)
+                        return
+                    }
+                    assetValue = candidate
+                    persist()
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = ((if (assetHint.isBlank()) 12 else 8) * dp).toInt() }
+        }.also { container.addView(it) }
+        if (assetHint.isBlank()) return
+        container.addView(TextView(this).apply {
+            text = assetHint
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            secondaryTextColor()?.let { setTextColor(it) }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = (12 * dp).toInt() }
+        })
+    }
+
+    private fun refreshAssetState() {
+        val assets = config.assetManagement ?: return
+        assetSpinner?.isEnabled = false
+        Thread {
+            val scanned = AssetStorage.scan(this, assets)
+            runOnUiThread {
+                assetState = scanned
+                val current = assetValue ?: assets.defaultTierValue
+                val valid = when {
+                    scanned.tierInstalled(current, assets) -> current
+                    scanned.high.installed -> assets.highTier.value
+                    scanned.low.installed -> assets.lowTier.value
+                    else -> current
+                }
+                if (valid != current) {
+                    assetValue = valid
+                    prefs.edit().putString(assets.prefsKey, valid).apply()
+                    showAssetSelection(valid)
+                }
+                assetSpinner?.isEnabled = scanned.high.installed || scanned.low.installed
+            }
+        }.start()
+    }
+
+    private fun showAssetSelection(value: String) {
+        val assets = config.assetManagement ?: return
+        suppressAssetSelection = true
+        assetSpinner?.setSelection(if (value == assets.highTier.value) 0 else 1)
+        assetSpinner?.post { suppressAssetSelection = false }
     }
 
     /**
@@ -217,6 +385,9 @@ class LauncherActivity : AppCompatActivity() {
      */
     override fun onResume() {
         super.onResume()
+        refreshAssetState()
+        refreshScreenOptionIndices()
+        refreshSubtitle()
         LauncherLog.enabled = prefs.getBoolean(KEY_DEBUG, false)
         val suffix = config.gameProcessSuffix ?: return
         val gameProcess = "$packageName$suffix"
@@ -233,6 +404,27 @@ class LauncherActivity : AppCompatActivity() {
             Log.w(LauncherLog.tag, "abnormal game process exit -> ${notice.summary} (log: ${notice.savedTo})")
             Snackbar.make(findViewById(android.R.id.content), text, Snackbar.LENGTH_LONG).show()
         }
+    }
+
+    /**
+     * Draws the header subtitle: [LauncherConfig.gameSubtitleProvider] when the host has one and it
+     * answers, the static [LauncherConfig.gameSubtitle] otherwise.
+     *
+     * Run from `onCreate` AND `onResume` because everything a live subtitle can be about - which
+     * game build is installed, whether the next launch is modded - is changed from Manage Assets and
+     * Manage Mods, i.e. from screens the player returns to this one FROM. A provider that threw
+     * would take the whole main screen down for a decorative line, so it is contained here and the
+     * static text stands in.
+     */
+    private fun refreshSubtitle() {
+        val live = try {
+            config.gameSubtitleProvider?.invoke(this)
+        } catch (t: Throwable) {
+            Log.w(LauncherLog.tag, "gameSubtitleProvider failed - falling back to the static subtitle", t)
+            null
+        }
+        val text = if (live.isNullOrBlank()) config.gameSubtitle else live
+        OptionRows.goneIfBlank(findViewById(R.id.pl_subtitle), text)
     }
 
     private fun currentAspect(): String = config.aspectOptions[aspectIndex].value
@@ -262,6 +454,7 @@ class LauncherActivity : AppCompatActivity() {
         config.gameOptions.forEachIndexed { i, option ->
             editor.putString(option.prefsKey, option.choices[optionIndices[i]].value)
         }
+        config.assetManagement?.let { assets -> assetValue?.let { editor.putString(assets.prefsKey, it) } }
         editor.apply()
         LauncherLog.enabled = debugSwitch.isChecked
     }
@@ -272,6 +465,24 @@ class LauncherActivity : AppCompatActivity() {
         debug: Boolean,
         options: List<String> = currentOptionValues()
     ) {
+        // An interrupted whole-install move leaves a tree that can look complete to a path check
+        // while a file is still missing from the middle of it, so the sentinel outranks every other
+        // gate and is tested first.
+        config.deployImport?.let { deploy ->
+            if (com.teampacheworks.launcher.deploy.DeployStorage.importInProgress(this, deploy)) {
+                Toast.makeText(this, R.string.pl_assets_import_half_done, Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, DeployImportActivity::class.java))
+                return
+            }
+        }
+        config.assetManagement?.let { assets ->
+            val selected = assetValue ?: assets.defaultTierValue
+            if (!AssetStorage.isLaunchReady(this, assets, selected)) {
+                Toast.makeText(this, R.string.pl_assets_launch_blocked, Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, AssetManagementActivity::class.java))
+                return
+            }
+        }
         Log.i(LauncherLog.tag, "starting game activity aspect=$aspect fps=$fps debug=$debug " +
             "options=${config.gameOptions.map { it.key }.zip(options)}")
         val intent = Intent(this, config.gameActivityClass)
@@ -280,6 +491,33 @@ class LauncherActivity : AppCompatActivity() {
             .putExtra(LauncherContract.EXTRA_DEBUG_LOG, debug)
         config.gameOptions.forEachIndexed { i, option ->
             intent.putExtra(option.extraName, options[i])
+        }
+        config.assetManagement?.let { assets ->
+            intent.putExtra(assets.extraName, assetValue ?: assets.defaultTierValue)
+        }
+        config.gpuDriverManagement?.let { gpu ->
+            val selected = prefs.getString(gpu.prefsKey, GpuDriverStorage.SYSTEM)
+            val driver = GpuDriverStorage.resolve(this, gpu, selected)
+            if (driver == null) {
+                intent.putExtra(LauncherContract.EXTRA_GPU_DRIVER, GpuDriverStorage.SYSTEM)
+            } else {
+                intent.putExtra(LauncherContract.EXTRA_GPU_DRIVER, if (driver.imported) "custom" else "bundled")
+                intent.putExtra(LauncherContract.EXTRA_GPU_DRIVER_DIR, driver.directory.absolutePath)
+                intent.putExtra(LauncherContract.EXTRA_GPU_DRIVER_LIB, driver.libraryName)
+            }
+        }
+        // The mod SET is a file, not an extra, and it is rewritten here rather than only on toggle:
+        // a re-stage of the game's mod tree, a restored backup or a hand-edit can all leave the
+        // file disagreeing with what this launcher last persisted, and the launcher's prefs are the
+        // authority. One small text write per launch.
+        config.modManagement?.let { mods ->
+            ModEnabledStore.write(this, prefs, mods)
+            intent.putExtra(
+                LauncherContract.EXTRA_MODS_ENABLED,
+                // The disk-aware form: an install carrying no runnable mod arms nothing, so a
+                // vanilla-only package boots vanilla even with the switch left on from before.
+                if (ModEnabledStore.masterEnabled(this, prefs, mods)) "1" else "0"
+            )
         }
         config.buildGameIntentExtras(intent, aspect, fps, debug)
         startActivity(intent)

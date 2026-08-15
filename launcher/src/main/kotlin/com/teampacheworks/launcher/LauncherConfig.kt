@@ -1,11 +1,15 @@
 package com.teampacheworks.launcher
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import com.teampacheworks.launcher.assets.AssetManagementConfig
+import com.teampacheworks.launcher.gpu.GpuDriverConfig
+import com.teampacheworks.launcher.mods.ModManagementConfig
+import java.io.File
 
 /**
- * One aspect-ratio choice offered on the Settings card (ui-sync design spec, §Main screen).
+ * One aspect-ratio choice offered on the Video settings card (ui-sync design spec, §Main screen).
  *
  * [value] is the value persisted to SharedPreferences and handed to the game activity as the
  * [LauncherContract.EXTRA_ASPECT] extra - keep it stable across app versions. [label] is the
@@ -23,11 +27,19 @@ data class AspectOption(val value: String, val label: String)
  * [CloudBackupActivity] via [LauncherHost].
  *
  * @param gameTitle Big 26sp header title on the main screen (e.g. "My Game").
- * @param gameSubtitle 13sp header subtitle (e.g. "Android port · Team Pache Works").
+ * @param gameSubtitle 13sp header subtitle (e.g. "Android port · Team Pache Works"). Static text,
+ *   used whenever [gameSubtitleProvider] is absent or declines to answer.
+ * @param gameSubtitleProvider Optional LIVE subtitle, re-evaluated on every main-screen resume.
+ *   Return null or blank to fall back to the static [gameSubtitle] - which is what a host does when
+ *   whatever it wanted to report is not knowable on this device yet, so the header never shows a
+ *   half-filled template. Keep it cheap: it runs on the main thread inside `onResume`. The reason it
+ *   exists is that the interesting facts about a launch (which game build is installed, whether the
+ *   next start is modded) are changed from screens inside this same launcher, so a subtitle computed
+ *   once at config-build time would be stale the moment the player came back from one of them.
  * @param appLabel Human-readable product name used in prose (crash report headers, cloud gist
  *   description/README, log ring header) - does NOT set `android:label`; that stays a static
  *   manifest attribute the host app owns (see docs/INTEGRATION.md).
- * @param footerText Small footer line under the Save & Cloud card (e.g.
+ * @param footerText Small footer line under the last card (e.g.
  *   "Team Pache Works · personal build, not for distribution").
  * @param downloadsFolderName Sub-folder of the public Downloads directory logs/crash reports are
  *   exported to (`Downloads/<downloadsFolderName>`), e.g. "MyGame".
@@ -44,8 +56,11 @@ data class AspectOption(val value: String, val label: String)
  *   sharing a device do not need to agree on a token format, but the default is a perfectly
  *   reasonable choice for a new port; only override this if you specifically need to.
  * @param savePatterns Glob patterns (e.g. `"*.fasta"`, `"save_??.dat"`) identifying which files in
- *   `filesDir` are part of a save bundle. `?` matches one character, `*` matches any run of
+ *   [saveDirectory] are part of a save bundle. `?` matches one character, `*` matches any run of
  *   characters; matching is case-insensitive. See [com.teampacheworks.launcher.save.SaveBundle].
+ * @param saveDirectory Resolves the directory scanned by Save Management and Cloud Backup. The
+ *   default preserves the original behaviour (`Context.filesDir`); ports whose guest writes to an
+ *   external or nested compatibility path can point the launcher at that exact directory.
  * @param saveExcludeNames Exact file names (case-insensitive) that are never bundled even if they
  *   match [savePatterns] - typically machine-local settings files that live alongside saves. Checked
  *   against both the bare file name and, when [recursiveSaves] is on, the full path relative to
@@ -60,16 +75,21 @@ data class AspectOption(val value: String, val label: String)
  *   docs/INTEGRATION.md "recursiveSaves").
  * @param exportFilenamePrefix Prefix for the SAF export file name; the suggested name is
  *   `"<exportFilenamePrefix><yyyyMMdd-HHmmss>.zip"`, e.g. "mygame-save-".
- * @param aspectOptions The Settings card's aspect-ratio dropdown, in display order. The game
+ * @param aspectOptions The Video settings card's aspect-ratio dropdown, in display order. The game
  *   activity is responsible for actually letterboxing to the chosen [AspectOption.value].
  * @param defaultAspectValue Must equal one of [aspectOptions]'s values.
  * @param gameOptions Extra host-declared enumerated settings ("pick one of N") rendered on the
- *   Settings card directly under the aspect row, in list order, each as a label + Spinner + hint
+ *   Video settings card directly under the aspect row, in list order, each as a label + Spinner + hint
  *   triple identical in geometry to the aspect row (docs/UI-SPEC.md "Host options"). Each
  *   selection is persisted under [LauncherOption.prefsKey] and handed to the game activity as the
  *   String extra [LauncherOption.extraName]. The library never interprets the values - an FPS
  *   limiter, a texture-quality level and a scaler mode are all the same thing to it. Empty by
- *   default, in which case the Settings card is byte-for-byte what it always was.
+ *   default, in which case the Video settings card is byte-for-byte what it always was. An entry carrying
+ *   a [LauncherOption.screenKey] is drawn on the matching [optionScreens] sub-screen instead of on
+ *   the card, and is otherwise treated identically - persisted and forwarded exactly the same.
+ * @param optionScreens Sub-screens hosting groups of [gameOptions] (see [LauncherOptionScreen]).
+ *   Each one that has at least one option pointing at it adds a single navigation button to the
+ *   Controls card. Empty by default, in which case there is no Controls card at all.
  * @param gameActivityClass The host's game activity, started by the PLAY button.
  * @param buildGameIntentExtras Called after the three standard extras
  *   ([LauncherContract.EXTRA_ASPECT]/[LauncherContract.EXTRA_SHOW_FPS]/
@@ -94,6 +114,7 @@ data class AspectOption(val value: String, val label: String)
 data class LauncherConfig(
     val gameTitle: String,
     val gameSubtitle: String,
+    val gameSubtitleProvider: ((Context) -> String?)? = null,
     val appLabel: String,
     val footerText: String = "Personal build, not for distribution",
     val downloadsFolderName: String,
@@ -102,13 +123,32 @@ data class LauncherConfig(
     val cloudFenceTag: String = cloudAppId.uppercase(),
     val cloudTokenMagic: String = "PACHE-CLOUD-TOKEN-1\n",
     val savePatterns: List<String>,
+    val saveDirectory: (Context) -> File? = { it.filesDir },
     val saveExcludeNames: Set<String> = emptySet(),
     val recursiveSaves: Boolean = false,
     val exportFilenamePrefix: String = "${cloudAppId}-save-",
+    /** Hide the legacy aspect-ratio row for games that size themselves from the native surface. */
+    val showAspectRatio: Boolean = true,
     val aspectOptions: List<AspectOption> = LauncherContract.DEFAULT_ASPECT_OPTIONS,
     val defaultAspectValue: String = LauncherContract.ASPECT_16_9,
     val gameOptions: List<LauncherOption> = emptyList(),
+    val optionScreens: List<LauncherOptionScreen> = emptyList(),
     val assetManagement: AssetManagementConfig? = null,
+    /**
+     * Whole-install import from a staged deploy folder, by moving rather than copying. Non-null
+     * adds the "Import install folder" button to the Manage Assets screen and the screen behind it;
+     * null leaves the launcher exactly as it was. Independent of [assetManagement] - a host may have
+     * either, both, or neither - though in practice the deploy folder is a superset of the asset
+     * bundle and this is the route that needs no terminal.
+     */
+    val deployImport: com.teampacheworks.launcher.deploy.DeployImportConfig? = null,
+    val gpuDriverManagement: GpuDriverConfig? = null,
+    /**
+     * Per-mod on/off management. Non-null adds the "Manage mods" button and screen, and makes the
+     * launcher hand the game activity [LauncherContract.EXTRA_MODS_ENABLED]; null is byte-for-byte
+     * what the launcher always was.
+     */
+    val modManagement: ModManagementConfig? = null,
     val gameActivityClass: Class<out Activity>,
     val buildGameIntentExtras: (Intent, aspect: String, fps: Boolean, debug: Boolean) -> Unit = { _, _, _, _ -> },
     val appVersionName: String = "dev",
@@ -116,7 +156,9 @@ data class LauncherConfig(
     val cloudPrefsName: String = "$cloudAppId-cloud",
     val iconRes: Int,
     val gameProcessSuffix: String? = ":game"
-)
+) {
+    fun resolveSaveDirectory(context: Context): File = saveDirectory(context) ?: context.filesDir
+}
 
 /**
  * Process-wide holder for the single [LauncherConfig] a host app builds once. Every library

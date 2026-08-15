@@ -14,6 +14,21 @@ object LauncherContract {
     const val EXTRA_ASPECT = "com.teampacheworks.launcher.ASPECT"
     const val EXTRA_SHOW_FPS = "com.teampacheworks.launcher.SHOW_FPS"
     const val EXTRA_DEBUG_LOG = "com.teampacheworks.launcher.DEBUG_LOG"
+    const val EXTRA_GPU_DRIVER = "com.teampacheworks.launcher.GPU_DRIVER"
+    const val EXTRA_GPU_DRIVER_DIR = "com.teampacheworks.launcher.GPU_DRIVER_DIR"
+    const val EXTRA_GPU_DRIVER_LIB = "com.teampacheworks.launcher.GPU_DRIVER_LIB"
+
+    /**
+     * The Manage Mods master switch, as the String `"0"`/`"1"` (not a boolean) so a host can
+     * forward it verbatim to an engine env var without a transform. Present only when the host
+     * supplies a [LauncherConfig.modManagement].
+     *
+     * Note what this extra is NOT: the mod *set*. That travels as a file
+     * ([com.teampacheworks.launcher.mods.ModManagementConfig.enabledFile]), because an Intent extra
+     * is a poor channel for a list the game reads from a different process and a developer wants to
+     * `cat` over adb.
+     */
+    const val EXTRA_MODS_ENABLED = "com.teampacheworks.launcher.MODS_ENABLED"
 
     /**
      * Namespace for the extras carrying [LauncherConfig.gameOptions] selections; see

@@ -15,6 +15,12 @@
          declares that permission itself. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- DeployImportActivity moves an entire install (~14 GB on this project's reference game) one
+         file at a time. Without this the move stops whenever the device dozes, and the user is
+         asked to stare at a progress bar for an hour. The lock is PARTIAL and is released on every
+         exit path including cancellation; no wake lock is held outside that screen. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application>
         <activity
             android:name="com.teampacheworks.launcher.LauncherActivity"
@@ -32,6 +38,46 @@
 
         <activity
             android:name="com.teampacheworks.launcher.CloudBackupActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
+            android:theme="@style/Theme.PacheLauncher" />
+
+        <activity
+            android:name="com.teampacheworks.launcher.AssetManagementActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
+            android:theme="@style/Theme.PacheLauncher" />
+
+        <!-- keepScreenOn is deliberately NOT set here: the wake lock keeps the move running, so the
+             user should be free to put the tablet down. -->
+        <activity
+            android:name="com.teampacheworks.launcher.DeployImportActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:parentActivityName="com.teampacheworks.launcher.AssetManagementActivity"
+            android:theme="@style/Theme.PacheLauncher" />
+
+        <activity
+            android:name="com.teampacheworks.launcher.GpuDriverManagementActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
+            android:theme="@style/Theme.PacheLauncher" />
+
+        <activity
+            android:name="com.teampacheworks.launcher.ModManagementActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
+            android:theme="@style/Theme.PacheLauncher" />
+
+        <!-- One activity for every LauncherOptionScreen a host declares; which one it draws comes
+             from the Intent (OptionScreenActivity.EXTRA_SCREEN_KEY), because the screens are config
+             data and a manifest entry per host group is not something a library can have. -->
+        <activity
+            android:name="com.teampacheworks.launcher.OptionScreenActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"

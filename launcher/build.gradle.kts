@@ -54,6 +54,7 @@ android {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.activity:activity-ktx:1.9.2")
+    implementation("androidx.documentfile:documentfile:1.0.1")
     // Material 1.13.0, not 1.14+: see README.md "Material / pill button". Consumers that only need
     // Material 1.14's default-pill MaterialButton and don't mind the AGP bump can upgrade here.
     implementation("com.google.android.material:material:1.13.0")

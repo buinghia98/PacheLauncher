@@ -10,22 +10,78 @@
 
     <string name="pl_play">PLAY</string>
 
-    <string name="pl_settings_header">Settings</string>
+    <!--
+      The four main-screen card headers, in the order docs/UI-SPEC.md lays them out:
+      Video settings -> Controls -> Manage game data -> Debug. Headers only; every button
+      inside a card keeps its own string.
+    -->
+    <string name="pl_settings_header">Video settings</string>
+    <string name="pl_controls_header">Controls</string>
+    <string name="pl_game_data_header">Manage game data</string>
+    <string name="pl_debug_header">Debug</string>
+    <string name="pl_asset_quality">Asset quality settings</string>
+    <string name="pl_asset_quality_hint">Only installed quality tiers can be selected. Applies the next time the game starts.</string>
+    <string name="pl_asset_tier_missing">That asset quality is not installed.</string>
+    <string name="pl_manage_assets">Manage assets</string>
+    <string name="pl_manage_assets_hint">View installed Common, High and Low data, import a package, or remove one unused quality tier.</string>
+    <string name="pl_assets_scanning">Scanning installed assets…</string>
+    <string name="pl_assets_importing">Validating and importing assets…</string>
+    <string name="pl_assets_deleting">Deleting asset tier…</string>
+    <string name="pl_assets_ready">Game assets are installed.</string>
+    <string name="pl_assets_incomplete">Game assets are incomplete. Common and at least one quality tier are required.</string>
+    <string name="pl_assets_common">Common</string>
+    <string name="pl_assets_installed_size">Installed · %1$s · %2$d files</string>
+    <string name="pl_assets_not_installed">Not installed</string>
+    <string name="pl_delete_asset_tier">Delete this tier</string>
+    <string name="pl_assets_cannot_delete">Cannot delete this tier</string>
+    <string name="pl_assets_keep_one_tier">At least one quality tier must remain installed.</string>
+    <string name="pl_assets_delete_title">Delete %1$s?</string>
+    <string name="pl_assets_delete_body">Only this quality tier will be removed. Common assets and the other quality tier are not affected.</string>
+    <string name="pl_delete">Delete</string>
+    <string name="pl_import_assets">Import asset folder…</string>
+    <string name="pl_import_assets_hint">Select the /%1$s/ folder from device storage in the next screen. Files are validated against the manifest before they are installed.</string>
+    <string name="pl_assets_imported">Imported %1$s.</string>
+    <string name="pl_assets_operation_failed">Asset operation failed: %1$s</string>
+    <string name="pl_assets_launch_blocked">Common assets or the selected quality tier are incomplete. Check Manage assets.</string>
+    <string name="pl_assets_unreadable">Game data is on this device but this app cannot read it. Re-import them with the menu below, do not copy the data folder to android/data via MTP.</string>
+    <string name="pl_assets_import_half_done">An import was interrupted. Open Import install folder to finish it.</string>
+
+    <string name="pl_deploy_title">Import install folder</string>
+    <string name="pl_deploy_intro">Copy the install folder onto this device (Downloads, or a USB drive), then choose it here.</string>
+    <string name="pl_deploy_choose">Choose folder…</string>
+    <string name="pl_deploy_hint">Files are verified then moved to data folder. Do not close or interrupt the app while this is running.</string>
+    <string name="pl_deploy_verifying">Reading the folder and checking it against its manifest…</string>
+    <string name="pl_deploy_moving">Moving files into the game\'s data folder…</string>
+    <string name="pl_deploy_counts">%1$s / %2$s files · %3$s / %4$s</string>
+    <string name="pl_deploy_cancel">Cancel</string>
+    <string name="pl_deploy_keep_going">Keep going</string>
+    <string name="pl_deploy_cancel_title">Stop the import?</string>
+    <string name="pl_deploy_cancel_body">To continue, go back to this menu and import the same folder again.</string>
+    <string name="pl_deploy_cancelling">Stopping after the current file…</string>
+    <string name="pl_deploy_cancelled">Stopped. Choose the same folder again to continue.</string>
+    <string name="pl_deploy_resume_available">An earlier import did not finish. Choose the same folder again to continue it.</string>
+    <string name="pl_deploy_done_title">Install folder imported</string>
+    <string name="pl_deploy_done">Moved %1$s files (%2$s) in %3$dm %4$ds.</string>
+    <string name="pl_deploy_done_resumed">%1$s files were already installed by an earlier run.</string>
+    <string name="pl_deploy_done_preserved">%1$s files were skipped to keep your existing settings and mod data.</string>
+    <string name="pl_deploy_done_blocks">Installed: %1$s</string>
+    <string name="pl_deploy_failed">Import failed: %1$s</string>
 
     <string name="pl_aspect_label">Aspect ratio</string>
-    <string name="pl_aspect_hint">Applies the next time the game starts. The image is letterboxed, never stretched.</string>
+    <string name="pl_aspect_hint"></string>
 
     <string name="pl_show_fps">Show FPS</string>
-    <string name="pl_show_fps_hint">Small green counter in the top-right corner of the game image. Applies the next time the game starts.</string>
+    <string name="pl_show_fps_hint"></string>
     <string name="pl_debug_logging">Debug logging</string>
-    <string name="pl_debug_logging_hint">Records boot steps and device info. Crash reports are written either way.</string>
+    <string name="pl_debug_logging_hint">Records boot steps and device info. Crash reports are written either way. Logs are saved in Downloads/%1$s.</string>
 
     <string name="pl_export_logs">Export logs</string>
     <string name="pl_export_logs_ok">Exported %1$d log file(s) to Downloads/%2$s</string>
     <string name="pl_export_logs_none">No logs to export yet.</string>
     <string name="pl_export_logs_failed">Export failed: %1$s</string>
 
-    <string name="pl_save_and_cloud_header">Save &amp; Cloud</string>
+    <!-- The Save &amp; Cloud card is gone; its two buttons and this notice now live on the
+         "Manage game data" card, under Manage assets and Manage mods. -->
     <string name="pl_manage_saves">Manage saves</string>
     <string name="pl_cloud_sync_gist">Cloud sync (GitHub Gist)</string>
     <string name="pl_save_and_cloud_notice">Export saves to a zip, import one back, or sync them through a private GitHub Gist.</string>
@@ -34,8 +90,8 @@
 
     <!-- ===================== Cloud backup (design spec §3) ===================== -->
     <string name="pl_cloud_intro_title">Back up your saves to your own GitHub account</string>
-    <string name="pl_cloud_intro_body">%1$s stores backups in one secret GitHub Gist in your own account. Nothing is uploaded until you press Upload, and nothing leaves this device until you connect a token.</string>
-    <string name="pl_cloud_steps">1. Open GitHub and sign in.\n2. Create a fine-grained personal access token.\n3. Expiration: about 366 days.\n4. Repository access: leave at “Public repositories” -- none is needed.\n5. Account permissions → Gists → Read and write. That one permission is all it needs.\n6. Copy the token (GitHub shows it once) and paste it below.</string>
+    <string name="pl_cloud_intro_body">%1$s stores backups in one secret GitHub Gist in your own account. Connect your Github Personal Access Token to continue.</string>
+    <string name="pl_cloud_steps">1. Open GitHub and sign in.\n2. Create a fine-grained personal access token.\n3. Set an Expiration date.\n4. Repository access: leave at “Public repositories”.\n5. Account permissions → Gists → Read and write only.\n6. Copy the token (GitHub shows it once) and paste it below.</string>
     <string name="pl_cloud_open_github">Create token</string>
     <string name="pl_cloud_my_tokens">My tokens</string>
     <string name="pl_cloud_token_hint">github_pat_…</string>
@@ -43,17 +99,17 @@
     <string name="pl_cloud_connect">Connect</string>
     <string name="pl_cloud_clipboard_empty">The clipboard is empty.</string>
     <string name="pl_cloud_connected_ok">Connected as %1$s. Your gist is created by your first Upload.</string>
-    <string name="pl_cloud_token_not_saved">⚠ The token could not be saved to this device, so you will have to paste it again next time. This session works normally.</string>
+    <string name="pl_cloud_token_not_saved">The token could not be saved to this device, so you will have to paste it again next time. This session works normally.</string>
 
     <string name="pl_cloud_connected_as">Connected as %1$s</string>
     <string name="pl_cloud_your_account">your GitHub account</string>
-    <string name="pl_cloud_gist_line">Gist %1$s · secret (unlisted, not private -- anyone with the link can read it)</string>
-    <string name="pl_cloud_no_gist_yet">No gist yet. Your first Upload creates one, unlisted, in your own account.</string>
+    <string name="pl_cloud_gist_line">Gist %1$s · Gists are unlisted, not private. Anyone with the link can read it)</string>
+    <string name="pl_cloud_no_gist_yet">No gist yet. Your first Upload creates one in your account.</string>
     <string name="pl_cloud_refresh">Refresh</string>
     <string name="pl_cloud_open_gist">Open in browser</string>
     <string name="pl_cloud_upload">Upload a backup…</string>
     <string name="pl_cloud_upload_go">Upload</string>
-    <string name="pl_cloud_upload_body">This uploads a bundle of the %1$d save file(s) on this device. Add a note so you can tell backups apart.</string>
+    <string name="pl_cloud_upload_body">This uploads a bundle of the %1$d save file(s) on this device. Add a note (optional).</string>
     <string name="pl_cloud_note_hint">Note (optional)</string>
     <string name="pl_cloud_slots">Cloud slots</string>
     <string name="pl_cloud_no_slots">No backups yet.</string>
@@ -61,26 +117,26 @@
     <string name="pl_cloud_download">Download</string>
     <string name="pl_cloud_delete">Delete</string>
     <string name="pl_cloud_nothing_to_upload">Nothing to upload</string>
-    <string name="pl_cloud_nothing_to_upload_body">There are no saves on this device yet. Download still works, and it is how you would restore one.</string>
+    <string name="pl_cloud_nothing_to_upload_body">There are no saves on this device yet.</string>
     <string name="pl_cloud_upload_ok">Uploaded to %1$s.</string>
-    <string name="pl_cloud_up_to_date">Up to date -- these saves are already in %1$s, so nothing was uploaded.</string>
+    <string name="pl_cloud_up_to_date">Up to date.</string>
     <string name="pl_cloud_upload_failed">Upload failed</string>
 
     <string name="pl_cloud_download_title">Replace your saves?</string>
     <string name="pl_cloud_download_body">This replaces the saves on this device with %1$d file(s) from the cloud. The game folder currently holds %2$d.</string>
-    <string name="pl_cloud_download_ok">Restored %1$d save file(s). Your previous saves are kept as %2$s.</string>
+    <string name="pl_cloud_download_ok">Restored %1$d save file(s).</string>
     <string name="pl_cloud_download_failed">Download failed</string>
     <string name="pl_cloud_download_refused">Download refused</string>
     <string name="pl_cloud_validate_only">Download anyway</string>
-    <string name="pl_cloud_validate_only_body">You can still download it: the bundle is checked for being a readable save bundle either way, and it is refused if it is not. Only the “was this changed outside the launcher” check is skipped.</string>
+    <string name="pl_cloud_validate_only_body"></string>
 
     <string name="pl_cloud_delete_slot_title">Delete this cloud slot?</string>
-    <string name="pl_cloud_delete_slot_body">This removes %1$s from your GitHub gist.\n\nThis cannot be undone from here. There is no trash can to get it back from.\n\nThe saves on this device are not touched.</string>
+    <string name="pl_cloud_delete_slot_body">This removes %1$s from your GitHub gist.\n\nThis cannot be undone. Saves on this device are not touched.</string>
     <string name="pl_cloud_slot_deleted">Deleted %1$s.</string>
     <string name="pl_cloud_delete_failed_title">Delete failed</string>
 
     <string name="pl_cloud_disconnect">Disconnect</string>
-    <string name="pl_cloud_disconnect_body">This removes the token from this device.\n\nIt does NOT delete your cloud backups and it does NOT revoke the token -- revoke it yourself on GitHub if you want it dead. Pasting a new token from the same account brings the same backups straight back.</string>
+    <string name="pl_cloud_disconnect_body">This removes the token from this device.\n\nIt does not delete your cloud backups nor revoke the token. Revoke it yourself on GitHub if you want it dead. Pasting a new token from the same account brings the old backups back.</string>
     <string name="pl_cloud_disconnect_delete">Disconnect and delete cloud data</string>
     <string name="pl_cloud_disconnect_delete_body1">This deletes the whole gist from your GitHub account, including every backup in it, and then removes the token from this device.</string>
     <string name="pl_cloud_are_you_sure">Are you sure?</string>
@@ -91,13 +147,13 @@
     <string name="pl_cloud_deleted_ok">Cloud data deleted and token removed from this device.</string>
     <string name="pl_cloud_delete_failed">Could not delete the gist: %1$s</string>
 
-    <string name="pl_cloud_stale">⚠ GitHub is still serving an older copy of your cloud index than this device last wrote. What you see may be out of date -- press Refresh in a moment.</string>
+    <string name="pl_cloud_stale">GitHub is still serving an older copy of your cloud index than this device last wrote. Press Refresh if saves don\'t look right.</string>
     <string name="pl_cloud_action_failed">Something went wrong. Your saves on this device were not changed.</string>
     <string name="pl_cloud_fix_permission">Edit the token on GitHub and set Account permissions → Gists → Read and write.</string>
-    <string name="pl_cloud_offline_hint">Cloud features need an internet connection; everything else in the game works without one.</string>
-    <string name="pl_cloud_unauthorized_hint">Check you copied the whole token -- GitHub only shows it once. If it expired or was deleted, create a new one.</string>
+    <string name="pl_cloud_offline_hint">Cloud features need an internet connection.</string>
+    <string name="pl_cloud_unauthorized_hint">Check if you copied the whole token. If it expired or was deleted, create a new one.</string>
     <string name="pl_cloud_no_browser">No browser is available on this device. The address is: %1$s</string>
-    <string name="pl_cloud_footer">The gist is secret, which means unlisted -- not private. Anyone who has its URL can read it, so do not share the URL. The token is stored on this device only, is excluded from Android Auto Backup, and is obfuscated rather than hardware-encrypted.</string>
+    <string name="pl_cloud_footer">Anyone who has the Gist URL can read it. The token is stored on this device only and is not hardware-encrypted. Do not share app backups to anyone else.</string>
 
     <!-- ===================== Save Management (design spec §2) ===================== -->
     <string name="pl_save_management">Save Management</string>
@@ -106,7 +162,7 @@
     <string name="pl_saves_count">%1$d save file(s) will go into the bundle.</string>
     <string name="pl_export_bundle">Export save bundle…</string>
     <string name="pl_import_bundle">Import save bundle…</string>
-    <string name="pl_save_management_footer">A bundle is a zip of every save file in the game folder matching the configured pattern. Machine-local settings files are deliberately left out -- they are a setting, not progress. Import auto-detects a zip or a base64 cloud payload, validates it before anything is written, and keeps your current saves as pre-import.bak.zip.</string>
+    <string name="pl_save_management_footer">A save bundle is a zip of every save file in the device.</string>
 
     <string name="pl_export_ok">Exported %1$d save file(s), %2$d bytes.</string>
     <string name="pl_export_failed">Export failed: %1$s</string>
@@ -130,6 +186,35 @@
     <string name="pl_import_failed_short">Import failed. Your previous saves were restored.</string>
 
     <!-- ===================== Crash / debug (design spec §4) ===================== -->
-    <string name="pl_crash_notice">The game exited abnormally last time -- a log was saved to Downloads/%1$s.</string>
+    <string name="pl_crash_notice">The game exited abnormally last time - a log was saved to Downloads/%1$s.</string>
     <string name="pl_crash_notice_nolog">The game exited abnormally last time.</string>
+    <string name="pl_gpu_driver_label">Vulkan driver</string>
+    <string name="pl_gpu_driver_hint">System driver is safest and fastest. Only use these to debug graphical glitches.</string>
+    <string name="pl_gpu_driver_system">System driver</string>
+    <string name="pl_gpu_driver_system_details">The Vulkan driver that ships with this device.</string>
+    <string name="pl_manage_gpu_drivers">Load Custom driver</string>
+    <string name="pl_gpu_driver_installed">Installed drivers</string>
+    <string name="pl_gpu_driver_manage_hint">Choose the default Vulkan driver or import a driver ZIP from a trusted source.</string>
+    <string name="pl_gpu_driver_make_default">Make default</string>
+    <string name="pl_gpu_driver_default">Default driver</string>
+    <string name="pl_gpu_driver_default_set">%1$s is now the default driver.</string>
+    <string name="pl_gpu_driver_import">Import driver ZIP</string>
+    <string name="pl_gpu_driver_delete">Delete imported driver</string>
+    <string name="pl_gpu_driver_none">No app-provided drivers are installed.</string>
+    <string name="pl_gpu_driver_imported">Imported %1$s</string>
+    <string name="pl_gpu_driver_deleted">Driver deleted</string>
+    <string name="pl_gpu_driver_error">Driver rejected: %1$s</string>
+    <string name="pl_back">Back</string>
+
+    <!-- Manage Mods -->
+    <string name="pl_manage_mods">Manage mods</string>
+    <string name="pl_mods_hint">Turn individual mods on or off. Mod dependencies are enabled automatically.</string>
+    <string name="pl_mods_master">Enable mods</string>
+    <string name="pl_mods_version">v%1$s</string>
+    <string name="pl_mods_libraries">Required libraries: %1$d enabled (%2$s)</string>
+    <string name="pl_mods_libraries_none">Required libraries: none needed by the current selection.</string>
+    <string name="pl_mods_applies_next_launch">Saved. A mod you have just switched on rebuilds its data on the next launch, launch and restart once again to fully enable it.</string>
+    <string name="pl_mods_write_failed">Could not write the mod list to storage. Check that the game\'s data folder exists.</string>
+    <string name="pl_mods_unavailable">Not in this install — mod files not present in the data folder.</string>
+    <string name="pl_mods_none_installed">This install has no mods. To add mods, back up your saves and import an install folder that includes the mod stack.</string>
 </resources>

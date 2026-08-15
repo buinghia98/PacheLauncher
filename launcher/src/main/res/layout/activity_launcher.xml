@@ -2,10 +2,17 @@
 <!--
   Main launcher screen (docs/UI-SPEC.md "Main screen"): centred column capped at 560dp (full width
   on narrower screens - see MaxWidthLinearLayout), PLAY the one filled control, everything else
-  outlined, two MaterialCardView groups with a bold colorPrimary header and an 11sp hint line under
+  outlined, four MaterialCardView groups with a bold colorPrimary header and an 11sp hint line under
   every row. Icon/title/subtitle/footer text are set programmatically from LauncherConfig in
   LauncherActivity - only the theme's seed colour and this text are per-game; everything else here
   is identical for every port using this library.
+
+  The four cards, in order: Video settings -> Controls -> Manage game data -> Debug. Each card is
+  about ONE subject, which is the whole reason there are four of them rather than the original two:
+  a card that mixed the aspect ratio, the log exporter, the GPU driver picker and the save tools was
+  a list of unrelated knobs the player had to read in full to find one. A card whose contents are
+  all optional (Controls, and Manage game data on a host with no assets/mods) is hidden entirely by
+  LauncherActivity rather than shown as a header over nothing.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -109,7 +116,7 @@
                     android:textSize="13sp" />
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Settings card -->
+            <!-- Card 1: Video settings -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -136,6 +143,7 @@
                     <!-- Aspect ratio: plain framework Spinner, NOT an exposed dropdown
                          (docs/UI-SPEC.md). -->
                     <TextView
+                        android:id="@+id/pl_aspect_label"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="2dp"
@@ -149,6 +157,7 @@
                         android:layout_marginBottom="8dp" />
 
                     <TextView
+                        android:id="@+id/pl_aspect_hint"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="12dp"
@@ -167,22 +176,9 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical" />
 
-                    <!-- Control order: aspect -> host options -> Debug logging -> Show FPS. -->
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/pl_debug_switch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minHeight="48dp"
-                        android:text="@string/pl_debug_logging" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        android:text="@string/pl_debug_logging_hint"
-                        android:textColor="?android:attr/textColorSecondary"
-                        android:textSize="11sp" />
-
+                    <!-- Control order: aspect -> host options -> Show FPS. Debug logging is NOT
+                         here any more; it is a diagnostic, and it sits on the Debug card with the
+                         log exporter it produces output for. -->
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/pl_fps_switch"
                         android:layout_width="match_parent"
@@ -191,24 +187,61 @@
                         android:text="@string/pl_show_fps" />
 
                     <TextView
+                        android:id="@+id/pl_show_fps_hint"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
                         android:text="@string/pl_show_fps_hint"
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="11sp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/pl_export_logs_button"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/pl_export_logs" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Save & Cloud card -->
+            <!-- Card 2: Controls. LauncherConfig.optionScreens: one outlined navigation button per
+                 declared sub-screen that actually has options on it, built at runtime by
+                 LauncherActivity. The whole card is GONE for a host that declares none. -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/pl_controls_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="12dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="12dp">
+
+                    <!-- 2dp, not 10dp: every button pl_option_screen_button inflates carries its
+                         own 8dp top margin, so the gap under this header adds up to the same 10dp
+                         every other card has. -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="2dp"
+                        android:text="@string/pl_controls_header"
+                        android:textColor="?attr/colorPrimary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:id="@+id/pl_option_screens_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 3: Manage game data. Everything that reads or writes what is ON THE DEVICE,
+                 in one place and in one order: the game's own data, the mods layered over it, the
+                 saves it produces, and the cloud copy of those saves. Manage assets and Manage
+                 mods are shown only when the host configured them; Manage saves and Cloud sync are
+                 unconditional, which is why this card no longer starts GONE. -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/pl_manage_assets_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp">
@@ -223,13 +256,40 @@
                     android:paddingBottom="12dp">
 
                     <TextView
+                        android:id="@+id/pl_assets_header"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="10dp"
-                        android:text="@string/pl_save_and_cloud_header"
+                        android:text="@string/pl_game_data_header"
                         android:textColor="?attr/colorPrimary"
                         android:textSize="16sp"
                         android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/pl_manage_assets_button"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/pl_manage_assets"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/pl_assets_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/pl_manage_assets_hint"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="11sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/pl_manage_mods_button"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/pl_manage_mods"
+                        android:visibility="gone" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/pl_save_management_button"
@@ -248,11 +308,72 @@
                         android:text="@string/pl_cloud_sync_gist" />
 
                     <TextView
+                        android:id="@+id/pl_save_and_cloud_notice"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/pl_save_and_cloud_notice"
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="11sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 4: Debug. The three controls that exist to diagnose a build rather than to
+                 play it - what gets logged, where the log goes, and which Vulkan driver the game
+                 is handed. A player who never has a problem never needs to read this card. -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="12dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="10dp"
+                        android:text="@string/pl_debug_header"
+                        android:textColor="?attr/colorPrimary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/pl_debug_switch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
+                        android:text="@string/pl_debug_logging" />
+
+                    <TextView
+                        android:id="@+id/pl_debug_logging_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:text="@string/pl_debug_logging_hint"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="11sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/pl_export_logs_button"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/pl_export_logs" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/pl_manage_gpu_drivers_button"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/pl_manage_gpu_drivers"
+                        android:visibility="gone" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
