@@ -108,8 +108,8 @@ A **boolean** knob is just a two-choice option — give it `Off`/`On` labels ove
 (`"0"`/`"1"`, or whatever your engine reads) and let it render as a two-item `Spinner` like any
 other row. There is intentionally no separate switch/toggle option kind: the Video settings card is a
 uniform column of label→`Spinner`→hint rows (docs/UI-SPEC.md "Host options"), and a two-item
-dropdown expresses a boolean without a second render path or a broken visual rhythm. The Hades II
-port's "Async GPU submit" row is exactly this pattern.
+dropdown expresses a boolean without a second render path or a broken visual rhythm. An
+"Async GPU submit" row over `Off`/`On` is exactly this pattern.
 
 If the chosen `value` is already the string your engine consumes, forward it verbatim; only add a
 transform when the displayed choice and the engine input genuinely differ (the FPS limiter turns
