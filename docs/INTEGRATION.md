@@ -116,10 +116,64 @@ transform when the displayed choice and the engine input genuinely differ (the F
 `"60"` into a microsecond budget, so it does; a present-mode option whose values are already
 `fifo`/`mailbox`/`immediate` does not).
 
+## 2c. (Optional) build the game data on the device
+
+`deployImport` moves an install folder that a PC script already assembled. `dataBuild` **assembles
+it here**, from a folder of the player's own PC game files, so the only PC step left is copying that
+folder onto the device. Both exist for the same reason — a file another uid writes into the app's
+external data dir is `0660/2770 ext_data_rw` and this app is not in that group — and both answer it
+the same way: the app does the writing.
+
+```kotlin
+dataBuild = DataBuildConfig(
+    gameId = "mygame",
+    // Quoted in the on-screen instructions. It DESCRIBES the folder; it is not a name the
+    // build requires. See below.
+    sourceFolderName = "the folder with MyGame.app in it",
+    destinationDirectory = { it.getExternalFilesDir(null) },
+    builder = MyGameDataBuilder(),
+    requiresNetwork = true
+)
+```
+
+The library supplies the picker, the persisted permission, the worker thread, the partial wake lock,
+two progress scales, cancellation, and a sentinel that keeps a half-built tree away from your launch
+gate. It supplies **no** knowledge of game content. That is `DataBuilder`, which you implement:
+
+- `inspect(context, source, cancelled)` reads the picked folder and returns an `Inspection`: a
+  headline, some detail lines, and the `BuildVariant`s that can be built from it. A variant that
+  cannot be built is returned `enabled = false` with a `disabledNote` saying why — a greyed row with
+  no reason is a bug report.
+- `build(context, request, cancelled, progress)` does the work and returns the lines shown when it
+  finishes. `request.consumeSource` is the player's answer to keep-or-consume; honour it if your
+  build has anything to gain from moving rather than copying, ignore it if not.
+
+`SafTree` is the tool for both. It is a document-tree reader written for **tens of thousands of
+files**: `DocumentFile.length()` is a separate provider query per file, so walking a real game's
+content tree through it costs minutes before a byte moves. `SafTree.walk()` asks each directory once
+for id, name, mime and size together, and `SafTree.install()` copies — or, with `consume`, renames —
+one entry into a plain `File`.
+
+**Identify the folder by what is in it, never by its name.** The picker gives no guarantee about the
+name a folder ends up with after being copied to a phone, and refusing a correct folder over its
+label is refusing the right answer. Probe for a marker the game genuinely needs, and accept the pick,
+one level below it, and the obvious parent.
+
+Your launch gate must refuse a half-built tree:
+
+```kotlin
+LauncherHost.config.dataBuild?.let {
+    if (DataBuildStorage.buildInProgress(this, it)) return false
+}
+```
+
+The button lands on the Manage Assets screen below "Import install folder": importing a folder
+somebody already built is the shorter road whenever one exists.
+
 ## 3. Manifest
 
-The library's own manifest already declares `LauncherActivity`, `SaveManagementActivity`, and
-`CloudBackupActivity`, all `exported="false"`. Your host manifest supplies the launcher entry point
+The library's own manifest already declares `LauncherActivity`, `SaveManagementActivity`,
+`CloudBackupActivity` and `DataBuildActivity`, all `exported="false"`. Your host manifest supplies the launcher entry point
 by overriding `LauncherActivity` through a merge:
 
 ```xml

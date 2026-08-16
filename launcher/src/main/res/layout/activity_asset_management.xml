@@ -61,22 +61,17 @@
             android:text="@string/pl_deploy_title"
             android:visibility="gone" />
 
+        <!-- The route for a player who has the PC game files but no PC-built install folder. Below
+             the import, because importing a folder someone already built is the shorter road when
+             it exists at all. -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/pl_import_assets_button"
+            android:id="@+id/pl_build_data_button"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="@string/pl_import_assets" />
+            android:text="@string/pl_build_title"
+            android:visibility="gone" />
 
-        <!-- Text is set in code: the folder name it quotes belongs to the host, not to this
-             library, so it cannot be a static resource here. -->
-        <TextView
-            android:id="@+id/pl_import_assets_hint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="11sp" />
     </com.teampacheworks.launcher.ui.MaxWidthLinearLayout>
 </ScrollView>

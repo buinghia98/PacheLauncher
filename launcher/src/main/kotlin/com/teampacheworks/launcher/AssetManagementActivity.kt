@@ -10,7 +10,6 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
@@ -20,22 +19,16 @@ import com.teampacheworks.launcher.assets.AssetInstallState
 import com.teampacheworks.launcher.assets.AssetManagementConfig
 import com.teampacheworks.launcher.assets.AssetStorage
 import com.teampacheworks.launcher.assets.AssetTierConfig
+import com.teampacheworks.launcher.databuild.DataBuildStorage
 import com.teampacheworks.launcher.deploy.DeployStorage
 
 class AssetManagementActivity : AppCompatActivity() {
     private lateinit var config: AssetManagementConfig
     private lateinit var cards: LinearLayout
     private lateinit var summary: TextView
-    private lateinit var importButton: MaterialButton
     private lateinit var deployButton: MaterialButton
     private lateinit var warning: TextView
     private var state: AssetInstallState? = null
-
-    private val chooseFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) runBusy(getString(R.string.pl_assets_importing)) {
-            AssetStorage.importTree(this, config, uri)
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,29 +37,18 @@ class AssetManagementActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         cards = findViewById(R.id.pl_asset_cards)
         summary = findViewById(R.id.pl_assets_summary)
-        importButton = findViewById(R.id.pl_import_assets_button)
-        importButton.setOnClickListener { chooseFolder.launch(null) }
-        // The folder a player has to go find is named by the HOST's staging script, never by this
-        // library: a deploy config states it outright, and anything else falls back to the
-        // application id, which is what such a folder is named after in the first place.
-        OptionRows.goneIfBlank(
-            findViewById(R.id.pl_import_assets_hint),
-            getString(
-                R.string.pl_import_assets_hint,
-                LauncherHost.config.deployImport?.packageFolderName ?: packageName
-            )
-        )
         deployButton = findViewById(R.id.pl_import_deploy_button)
         warning = findViewById(R.id.pl_assets_warning)
+        findViewById<MaterialButton>(R.id.pl_build_data_button).let { button ->
+            if (LauncherHost.config.dataBuild == null) return@let
+            button.visibility = View.VISIBLE
+            button.setOnClickListener { startActivity(Intent(this, DataBuildActivity::class.java)) }
+        }
         LauncherHost.config.deployImport?.let {
             deployButton.visibility = View.VISIBLE
             deployButton.setOnClickListener {
                 startActivity(Intent(this, DeployImportActivity::class.java))
             }
-            // The asset-bundle import is the older, narrower route. With a whole-install import
-            // available it stops being the headline button, but it is not removed: a bundle built
-            // by the asset script is still a legal thing to own.
-            importButton.text = getString(R.string.pl_import_assets)
         }
         refresh()
     }
@@ -92,14 +74,24 @@ class AssetManagementActivity : AppCompatActivity() {
             val halfDone = LauncherHost.config.deployImport?.let {
                 DeployStorage.importInProgress(this, it)
             } ?: false
-            runOnUiThread { state = scanned; render(scanned); renderWarning(diagnosis, halfDone) }
+            val halfBuilt = LauncherHost.config.dataBuild?.let {
+                DataBuildStorage.buildInProgress(this, it)
+            } ?: false
+            runOnUiThread {
+                state = scanned; render(scanned); renderWarning(diagnosis, halfDone, halfBuilt)
+            }
         }.start()
     }
 
-    private fun renderWarning(diagnosis: DeployStorage.Diagnosis?, halfDone: Boolean) {
+    private fun renderWarning(
+        diagnosis: DeployStorage.Diagnosis?,
+        halfDone: Boolean,
+        halfBuilt: Boolean
+    ) {
         val text = when {
             diagnosis?.isUnreadable == true -> getString(R.string.pl_assets_unreadable)
             halfDone -> getString(R.string.pl_assets_import_half_done)
+            halfBuilt -> getString(R.string.pl_assets_build_half_done)
             else -> null
         }
         warning.text = text ?: ""
@@ -107,7 +99,6 @@ class AssetManagementActivity : AppCompatActivity() {
     }
 
     private fun render(s: AssetInstallState) {
-        importButton.isEnabled = true
         val allReady = s.common.installed && (s.high.installed || s.low.installed)
         summary.text = getString(if (allReady) R.string.pl_assets_ready else R.string.pl_assets_incomplete)
         cards.removeAllViews()
@@ -193,6 +184,5 @@ class AssetManagementActivity : AppCompatActivity() {
 
     private fun setBusy(label: String) {
         summary.text = label
-        importButton.isEnabled = false
     }
 }

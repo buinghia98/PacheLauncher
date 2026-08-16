@@ -21,6 +21,20 @@
          exit path including cancellation; no wake lock is held outside that screen. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!--
+      ORIENTATION AND CONFIG CHANGES ARE THE SAME ON EVERY SCREEN.
+
+      They were not: the main screen was sensorLandscape and every screen behind it was plain
+      landscape, so turning the device rotated the launcher and then un-rotated it the moment the
+      player opened Manage assets. One policy, applied everywhere, is the only version of this that
+      does not read as a bug.
+
+      configChanges rides along with it and is NOT decoration. Without it a rotation destroys and
+      recreates the activity, and two of these own a worker thread that holds the Activity as its
+      Context - DeployImportActivity mid-move and DataBuildActivity mid-build both treat onDestroy
+      as "stop at the next safe boundary". Letting a wrist movement cancel a forty-minute build is
+      a worse bug than the one being fixed.
+    -->
     <application>
         <activity
             android:name="com.teampacheworks.launcher.LauncherActivity"
@@ -32,21 +46,24 @@
         <activity
             android:name="com.teampacheworks.launcher.SaveManagementActivity"
             android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
             android:theme="@style/Theme.PacheLauncher" />
 
         <activity
             android:name="com.teampacheworks.launcher.CloudBackupActivity"
             android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
             android:theme="@style/Theme.PacheLauncher" />
 
         <activity
             android:name="com.teampacheworks.launcher.AssetManagementActivity"
             android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
             android:theme="@style/Theme.PacheLauncher" />
 
@@ -55,21 +72,34 @@
         <activity
             android:name="com.teampacheworks.launcher.DeployImportActivity"
             android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:parentActivityName="com.teampacheworks.launcher.AssetManagementActivity"
+            android:theme="@style/Theme.PacheLauncher" />
+
+        <!-- Same wake-lock reasoning as DeployImportActivity: a build is tens of minutes of file
+             work and must survive the screen going off. -->
+        <activity
+            android:name="com.teampacheworks.launcher.DataBuildActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:parentActivityName="com.teampacheworks.launcher.AssetManagementActivity"
             android:theme="@style/Theme.PacheLauncher" />
 
         <activity
             android:name="com.teampacheworks.launcher.GpuDriverManagementActivity"
             android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
             android:theme="@style/Theme.PacheLauncher" />
 
         <activity
             android:name="com.teampacheworks.launcher.ModManagementActivity"
             android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
             android:theme="@style/Theme.PacheLauncher" />
 
@@ -79,7 +109,8 @@
         <activity
             android:name="com.teampacheworks.launcher.OptionScreenActivity"
             android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
             android:theme="@style/Theme.PacheLauncher" />
     </application>
