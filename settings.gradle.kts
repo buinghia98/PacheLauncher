@@ -18,4 +18,3 @@ rootProject.name = "PacheLauncher"
 
 include(":launcher")
 include(":sample")
-include(":mina-launcher")
