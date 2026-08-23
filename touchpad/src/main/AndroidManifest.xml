@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Library manifest for the on-screen gamepad module. One activity, exported="false", merged into the
+  host app the same way :launcher's screens are - see docs/INTEGRATION.md.
+
+  ORIENTATION AND CONFIG CHANGES MATCH :launcher's, deliberately. This screen is reached from a
+  launcher option screen and returns to it, and a screen that rotated differently from the one behind
+  it reads as a bug. configChanges is not decoration either: without it a rotation destroys and
+  recreates the activity mid-drag, and the placements the player has moved but not yet left the
+  screen with would go with it.
+
+  sensorLandscape rather than the game's own orientation, for the same reason: this is a launcher
+  screen. A host whose game is portrait overrides android:screenOrientation on this entry from its
+  own manifest via a merge override, exactly as it would for LauncherActivity.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name="com.teampacheworks.launcher.touch.TouchGamepadEditorActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/Theme.PacheLauncher.PadEditor" />
+    </application>
+</manifest>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sentence case throughout, per docs/UI-SPEC.md "Strings and capitalization policy" - except the
+  control names that are literally the markings on a gamepad (LB, LT, RB, RT, A / B / X / Y), which
+  are read off the hardware and not written as prose.
+
+  A host that wants different words overrides any of these in its own res/values/strings.xml; the
+  control names are also reachable per control through TouchGamepadLayout.Control.nameRes when the
+  host builds its own control list.
+-->
+<resources>
+
+    <!-- Layout editor -->
+    <string name="pl_pad_editor_title">Gamepad layout</string>
+    <string name="pl_pad_editor_none">Touch a control to select it</string>
+    <!-- %1$s is the selected control's name, e.g. "D-pad size". -->
+    <string name="pl_pad_editor_size">%1$s size</string>
+    <string name="pl_pad_editor_reset_size">Reset size</string>
+    <string name="pl_pad_editor_reset">Reset</string>
+    <string name="pl_pad_editor_reset_all">Reset all</string>
+    <string name="pl_pad_editor_done">Done</string>
+
+    <!-- Control names, shown over the editor's size slider. -->
+    <string name="pl_pad_left_stick">Left stick</string>
+    <string name="pl_pad_right_stick">Right stick</string>
+    <string name="pl_pad_dpad">D-pad</string>
+    <string name="pl_pad_face">A / B / X / Y</string>
+    <string name="pl_pad_lb">LB</string>
+    <string name="pl_pad_lt">LT</string>
+    <string name="pl_pad_rb">RB</string>
+    <string name="pl_pad_rt">RT</string>
+    <string name="pl_pad_start">Start</string>
+    <string name="pl_pad_back">Back</string>
+
+</resources>

@@ -15,11 +15,18 @@ your ABI set, or your process model; see "Constraints" below.
   `gamecontrollerdb.txt`, a double-back-to-exit helper, and a generic aspect-fit/letterbox helper.
   Everything per-game flows through one `LauncherConfig` value object — see
   `launcher/src/main/kotlin/com/teampacheworks/launcher/LauncherConfig.kt`.
+- **`touchpad/`** — OPTIONAL. An on-screen Xbox-layout gamepad drawn over a running game
+  (`com.teampacheworks.launcher.touch`), plus a drag-and-drop layout editor the player reaches from
+  a launcher option screen. A **separate module because it links GPL-3.0 code** (RadialGamePad), so
+  adopting it is an explicit `include` rather than something `:launcher` drags in — see
+  `docs/TOUCH-GAMEPAD.md`. It keeps `:launcher`'s no-native rule: the one thing it cannot do itself,
+  deliver a press to a game engine, is left to the host as a two-method `TouchGamepadSink`.
 - **`sample/`** — a minimal app demonstrating the adoption steps end to end, against a dummy game
   Activity that stands in for a real engine.
 - **`docs/`** — `UI-SPEC.md` (the Dustaet visual standard this library ships), `CLOUD-SPEC.md`
   (every Gist sync invariant), `INTEGRATION.md` (how a new port adopts the library, and what stays
-  per-game).
+  per-game), `TOUCH-GAMEPAD.md` (adopting `touchpad/`) and `TOUCH-GAMEPAD-SPEC.md` (the touch-target
+  technique behind it, written to be portable to a project that is not this one).
 
 ## Adopting this in a new port
 
@@ -30,11 +37,15 @@ a working app.
 
 ## Constraints
 
-- **Pure Kotlin/Java. No native (`.so`) dependency may ever be added to `launcher/`.** ABI choices —
+- **Pure Kotlin/Java. No native (`.so`) dependency may ever be added to `launcher/` or
+  `touchpad/`.** ABI choices —
   which native libraries ship, which architectures are supported, 32-bit vs. 64-bit — belong
   entirely to the host app's game side. A library with a native dependency of its own would
   constrain every consumer's ABI set whether they wanted that or not, so this module is guarded to
   stay pure JVM: see the comment in `launcher/build.gradle.kts`.
+- **`launcher/` stays Apache-clean.** `touchpad/` links GPL-3.0 code and is therefore a separate
+  module; no GPL dependency may be added to `launcher/`, or every consumer of the launcher inherits
+  the GPL's distribution terms whether they use an on-screen pad or not.
 - **`minSdk = 30`**, driven by `CrashReporter`'s use of
   `ActivityManager.getHistoricalProcessExitReasons` (an API 30 call). Lowering it requires guarding
   that one call site with a `Build.VERSION.SDK_INT` check.

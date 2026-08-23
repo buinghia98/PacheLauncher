@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The layout editor's control panel (TouchGamepadEditorActivity).
+
+  Material 3 Expressive, and matching the launcher's cards rather than the game's overlay: a
+  MaterialCardView on a surface-container colour with a generous corner radius, a bold colorPrimary
+  header at 16sp and a filled confirm button - exactly the vocabulary docs/UI-SPEC.md fixes for the
+  launcher screens, because this screen is reached from one of them and belongs to that flow rather
+  than to the game.
+
+  There is no explanatory line. The panel sits ON the pad it edits, so the one thing a sentence could
+  say (touch a control) is already said by the selection label, and said about the control you
+  touched.
+
+  It is a layout file rather than views built in code for the reason pl_option_screen_button.xml
+  gives: the outlined/text Material 3 button styles cannot be applied to a programmatically
+  constructed MaterialButton without a ContextThemeWrapper.
+
+  Sizing is WRAP_CONTENT with a fixed inner width so the panel stays a panel on a very wide tablet.
+-->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/pl_pad_editor_panel"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    app:cardCornerRadius="28dp"
+    app:cardElevation="6dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerHigh">
+
+    <LinearLayout
+        android:layout_width="360dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="10dp">
+
+        <TextView
+            android:id="@+id/pl_pad_editor_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/pl_pad_editor_title"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- The name of the control the slider is currently about. This is the whole reason there is
+             one slider instead of ten: the label says which control it moves. -->
+        <TextView
+            android:id="@+id/pl_pad_editor_selected"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/pl_pad_editor_none"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="14sp" />
+
+        <!-- Slider and its own reset on one row: the icon resets the SIZE of the control the slider
+             is about, so it belongs beside the slider and not in the button row below, where the two
+             whole-layout resets live. The slider takes the leftover width by weight. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/pl_pad_editor_size"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:enabled="false"
+                android:stepSize="0.01"
+                android:value="1.0"
+                android:valueFrom="0.5"
+                android:valueTo="1.6"
+                app:labelBehavior="gone" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pl_pad_editor_reset_size"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/pl_pad_editor_reset_size"
+                android:enabled="false"
+                app:icon="@drawable/pl_ic_reset"
+                app:iconSize="20dp" />
+        </LinearLayout>
+
+        <!-- Reset all is left, the two per-selection actions are right: the destructive one is the
+             one you should have to reach for. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pl_pad_editor_reset_all"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/pl_pad_editor_reset_all" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pl_pad_editor_reset"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/pl_pad_editor_reset" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pl_pad_editor_done"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="@string/pl_pad_editor_done"
+                app:cornerRadius="22dp" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

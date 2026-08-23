@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The editor's theme, deriving from Theme.PacheLauncher so a host that overrides that style (to seed
+  colorPrimary from its own key art, see docs/INTEGRATION.md) gets the editor's panel recoloured with
+  everything else - the panel is a launcher card and must not be the one screen that ignores the
+  host's palette.
+
+  The two overrides are both about the preview being honest. The window is fullscreen because the
+  game's window is, and a preview laid out against a shorter screen would place every control too low
+  (TouchGamepadEditorActivity.goFullscreen hides the bars at runtime as well; this stops the window
+  being sized with them in the first place). The background is black because the pad is drawn at the
+  opacity it will really have, and that only reads correctly against something dark.
+-->
+<resources>
+    <style name="Theme.PacheLauncher.PadEditor" parent="Theme.PacheLauncher">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

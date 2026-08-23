@@ -29,6 +29,10 @@ dependencies {
 `project(...)` line for a Maven coordinate — this repo does not currently publish one; see
 README.md.)
 
+`:touchpad` — the on-screen gamepad — is a **separate, optional** module with its own adoption
+steps, because it links GPL-3.0 code that must not reach a host that has no use for it. Nothing in
+this document assumes it; see `TOUCH-GAMEPAD.md` if you want it.
+
 ## 2. Build a `LauncherConfig` and install it
 
 Exactly one `LauncherConfig` exists per process lifetime. Build it and call
