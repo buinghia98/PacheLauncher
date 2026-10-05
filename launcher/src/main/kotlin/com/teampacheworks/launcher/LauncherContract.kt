@@ -1,5 +1,8 @@
 package com.teampacheworks.launcher
 
+import android.content.Context
+import java.io.File
+
 /**
  * Stable Intent extra names and default aspect values, shared between [LauncherActivity] and
  * whatever game Activity a host wires up in [LauncherConfig.gameActivityClass].
@@ -43,6 +46,16 @@ object LauncherContract {
      * [LauncherOptionChoice.value], never the label.
      */
     fun extraNameFor(optionKey: String): String = EXTRA_OPTION_PREFIX + optionKey
+
+    /**
+     * [LauncherConfig.directLaunch]: path, relative to `Context.filesDir`, of the marker the GAME
+     * creates once it has proven it can start (e.g. after its first presented frames). It is a file
+     * rather than a preference because it is written from the game process. The launcher deletes it
+     * again after an abnormal game exit, so a crashing build always falls back to the launcher.
+     */
+    const val LAUNCH_CONFIRMED_PATH = "launcher/launch_ok"
+
+    fun launchConfirmedFile(context: Context): File = File(context.filesDir, LAUNCH_CONFIRMED_PATH)
 
     const val ASPECT_16_9 = "16:9"
     const val ASPECT_4_3 = "4:3"

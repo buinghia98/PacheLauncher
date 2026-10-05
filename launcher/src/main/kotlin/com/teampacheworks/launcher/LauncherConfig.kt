@@ -110,6 +110,19 @@ data class AspectOption(val value: String, val label: String)
  *   suffix and [LauncherActivity] will check for - and report - an abnormal exit of that process
  *   on every resume (design spec §4). Set to null when the game runs in the launcher's own
  *   process; the check is then skipped entirely.
+ * @param cloudBackupEnabled When false the Cloud sync (GitHub Gist) button is removed from the
+ *   Manage game data card and the save notice stops mentioning the cloud. The cloud code stays in
+ *   the library (a host opting out should also drop `android.permission.INTERNET` from its merged
+ *   manifest with `tools:node="remove"`, see docs/INTEGRATION.md). Default true = unchanged.
+ * @param directLaunch Opt-in "game first" start-up (docs/INTEGRATION.md "Direct launch"). Once the
+ *   game has confirmed a successful launch by creating [LauncherContract.launchConfirmedFile], a
+ *   cold start of the app skips the launcher UI and starts [gameActivityClass] with the persisted
+ *   settings; the launcher stays underneath it in the task and only becomes visible when the game
+ *   ends unexpectedly or the game activity finishes with `RESULT_OK` (the player asked for the
+ *   launcher, e.g. double-Back). A clean game exit closes the whole task. The Debug card gains an
+ *   "Always start with launcher" switch that restores the classic behaviour. Requires
+ *   [gameProcessSuffix] (exits are classified from that process's ApplicationExitInfo). Default
+ *   false = the launcher behaves exactly as it always did.
  */
 data class LauncherConfig(
     val gameTitle: String,
@@ -155,7 +168,9 @@ data class LauncherConfig(
     val prefsName: String = "$cloudAppId-launcher",
     val cloudPrefsName: String = "$cloudAppId-cloud",
     val iconRes: Int,
-    val gameProcessSuffix: String? = ":game"
+    val gameProcessSuffix: String? = ":game",
+    val cloudBackupEnabled: Boolean = true,
+    val directLaunch: Boolean = false
 ) {
     fun resolveSaveDirectory(context: Context): File = saveDirectory(context) ?: context.filesDir
 }

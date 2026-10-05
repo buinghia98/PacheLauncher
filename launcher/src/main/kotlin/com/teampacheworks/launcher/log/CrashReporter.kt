@@ -97,13 +97,21 @@ object CrashReporter {
      * silent. Returns null when there is nothing to say.
      *
      * `lastSeen` is the newest timestamp already reported, so the same crash is not announced twice.
+     * [abnormal] decides which exits are worth a notice; the default is [isAbnormal] (reason only),
+     * a direct-launch host passes [isUncleanGameExit] so that every exit which sends the player
+     * back to the launcher is also explained there.
      */
-    fun checkGameProcessExit(context: Context, gameProcessName: String, lastSeen: Long): ExitNotice? {
+    fun checkGameProcessExit(
+        context: Context,
+        gameProcessName: String,
+        lastSeen: Long,
+        abnormal: (ApplicationExitInfo) -> Boolean = { isAbnormal(it.reason) }
+    ): ExitNotice? {
         return try {
             val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return null
             val list = am.getHistoricalProcessExitReasons(context.packageName, 0, 20)
             val hit = list.firstOrNull {
-                it.processName == gameProcessName && it.timestamp > lastSeen && isAbnormal(it.reason)
+                it.processName == gameProcessName && it.timestamp > lastSeen && abnormal(it)
             } ?: return null
 
             val sb = StringBuilder(4096)
@@ -141,6 +149,63 @@ object CrashReporter {
     } catch (t: Throwable) {
         0L
     }
+
+    /**
+     * Newest recorded exit of [gameProcessName] strictly after [since] (epoch ms), or null when the
+     * platform has not recorded one (yet - the record is written asynchronously after the process
+     * dies, so a caller reacting to the death itself may have to ask again a moment later).
+     */
+    fun latestGameExitSince(context: Context, gameProcessName: String, since: Long): ApplicationExitInfo? = try {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        am?.getHistoricalProcessExitReasons(context.packageName, 0, 20)
+            ?.filter { it.processName == gameProcessName && it.timestamp > since }
+            ?.maxByOrNull { it.timestamp }
+    } catch (t: Throwable) {
+        null
+    }
+
+    /**
+     * Direct-launch policy ([com.teampacheworks.launcher.LauncherConfig.directLaunch]): did this
+     * game-process exit end the session in a way the player did not ask for? True sends the player
+     * back to the launcher (and withdraws the launch confirmation); false closes the app.
+     *
+     * - Clean: `REASON_EXIT_SELF` with status 0 (the game's own Quit, i.e. `exit(0)`),
+     *   `REASON_USER_REQUESTED` (force-stop, swiping the task away), and the package-management
+     *   reasons (update, permission change, user stopped, ...).
+     * - Unclean: Java/native crash, ANR, init failure, excessive resource use, `exit()` with a
+     *   non-zero status; and a kill by signal, low-memory kill or unexplained `REASON_OTHER` while
+     *   the game was foreground or visible. The same three reasons in the background are the
+     *   system reclaiming a game the player had left, which is not a fault.
+     */
+    fun isUncleanGameExit(info: ApplicationExitInfo): Boolean = when (info.reason) {
+        ApplicationExitInfo.REASON_CRASH,
+        ApplicationExitInfo.REASON_CRASH_NATIVE,
+        ApplicationExitInfo.REASON_ANR,
+        ApplicationExitInfo.REASON_INITIALIZATION_FAILURE,
+        ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> true
+        ApplicationExitInfo.REASON_EXIT_SELF -> info.status != 0
+        ApplicationExitInfo.REASON_SIGNALED,
+        ApplicationExitInfo.REASON_LOW_MEMORY,
+        ApplicationExitInfo.REASON_OTHER,
+        ApplicationExitInfo.REASON_UNKNOWN ->
+            info.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+        else -> false
+    }
+
+    /** Newest exit of [gameProcessName] after [since] that [isUncleanGameExit] flags, or null. */
+    fun uncleanGameExitSince(context: Context, gameProcessName: String, since: Long): ApplicationExitInfo? = try {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        am?.getHistoricalProcessExitReasons(context.packageName, 0, 20)
+            ?.filter { it.processName == gameProcessName && it.timestamp > since && isUncleanGameExit(it) }
+            ?.maxByOrNull { it.timestamp }
+    } catch (t: Throwable) {
+        null
+    }
+
+    /** One-line rendering of an exit record for logcat. */
+    fun describe(info: ApplicationExitInfo): String =
+        "pid=${info.pid} reason=${reasonName(info.reason)}(${info.reason}) status=${info.status} " +
+            "importance=${info.importance} desc=${info.description ?: "-"}"
 
     /**
      * 🔴 `REASON_SIGNALED` and `REASON_USER_REQUESTED` are deliberately **not** abnormal here.

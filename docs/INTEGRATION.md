@@ -290,6 +290,39 @@ No extra wiring needed beyond `LauncherConfig.cloudAppId`/`cloudProductName`/`cl
 docs/CLOUD-SPEC.md for what each of those controls and which must stay stable once players have
 real backups. `CloudBackupActivity` is fully self-contained.
 
+### 7a. Opting out: `cloudBackupEnabled = false`
+
+A port that must not go online sets `LauncherConfig(cloudBackupEnabled = false)`: the Cloud sync
+button disappears from the Manage game data card and the notice under it no longer mentions the
+cloud. The cloud code stays in the library; drop the permission the library manifest declares from
+your merged manifest as well:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+```
+
+## 7b. Direct launch (`directLaunch = true`, opt-in)
+
+Default `false` changes nothing. With `true` (requires `gameProcessSuffix`):
+
+- **Launch confirmation.** Your GAME creates `LauncherContract.launchConfirmedFile(context)`
+  (`<filesDir>/launcher/launch_ok`) once it has really started (e.g. after its first presented
+  frames). It is a file because it is written from the game process.
+- **Cold start.** A fresh `LauncherActivity` (no saved state, no `autoplay` extra) whose player has
+  not switched on Debug > "Always start with launcher", with the marker present and no unreported
+  unclean game exit, starts the game straight away with the persisted settings. The launcher UI is
+  not inflated until the launcher is actually shown; its window stays black meanwhile.
+- **Return.** The game is started for a result. Finish the game activity with `RESULT_OK` when the
+  player asks for the launcher (e.g. double-Back). Otherwise the launcher reads the game process's
+  `ApplicationExitInfo` (polling up to ~3 s, the record is written asynchronously):
+  `CrashReporter.isUncleanGameExit` false (`EXIT_SELF` status 0, `USER_REQUESTED`, package
+  management reasons) closes the task with `finishAndRemoveTask()`; true (crash, native crash, ANR,
+  non-zero `exit()`, and a signal/low-memory/other kill while foreground or visible) shows the
+  launcher with the crash notice and deletes the marker, so the next cold start shows the launcher
+  until the game confirms a launch again. No record at all shows the launcher.
+- With "Always start with launcher" on, the launcher behaves as it does without `directLaunch`
+  (shown on cold start and after every game exit).
+
 ## 8. What stays per-game (does not belong in this library)
 
 - The game Activity itself, its engine, its rendering surface, its ABI/process/packaging choices.

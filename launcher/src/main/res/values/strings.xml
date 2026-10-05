@@ -72,6 +72,9 @@
 
     <string name="pl_show_fps">Show FPS</string>
     <string name="pl_show_fps_hint"></string>
+    <!-- LauncherConfig.directLaunch only. -->
+    <string name="pl_always_launcher">Always start with launcher</string>
+    <string name="pl_always_launcher_hint">When off, the game starts directly once it has launched successfully. The launcher still opens after a crash, or when you press Back twice in game.</string>
     <string name="pl_debug_logging">Debug logging</string>
     <string name="pl_debug_logging_hint">Records boot steps and device info. Crash reports are written either way. Logs are saved in Downloads/%1$s.</string>
 
@@ -85,6 +88,8 @@
     <string name="pl_manage_saves">Manage saves</string>
     <string name="pl_cloud_sync_gist">Cloud sync (GitHub Gist)</string>
     <string name="pl_save_and_cloud_notice">Export saves to a zip, import one back, or sync them through a private GitHub Gist.</string>
+    <!-- LauncherConfig.cloudBackupEnabled = false: the same notice without the cloud half. -->
+    <string name="pl_save_notice_no_cloud">Export saves to a zip or import one back.</string>
 
     <string name="pl_cloud_backup">Cloud Backup</string>
 

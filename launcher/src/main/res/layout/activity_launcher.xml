@@ -343,6 +343,26 @@
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
+                    <!-- Only for a host with LauncherConfig.directLaunch; GONE otherwise, so the
+                         card is unchanged for everyone else. -->
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/pl_always_launcher_switch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
+                        android:text="@string/pl_always_launcher"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/pl_always_launcher_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:text="@string/pl_always_launcher_hint"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/pl_debug_switch"
                         android:layout_width="match_parent"

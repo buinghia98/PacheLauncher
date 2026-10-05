@@ -3,7 +3,11 @@ package com.teampacheworks.launcher
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.util.TypedValue
@@ -15,7 +19,9 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
@@ -63,12 +69,91 @@ class LauncherActivity : AppCompatActivity() {
     private var assetValue: String? = null
     private var suppressAssetSelection = false
 
+    // ---------------------------------------------------------------- direct launch
+    // (LauncherConfig.directLaunch; every field below stays at its initial value for other hosts)
+
+    /** setContentView() has run. A direct launch defers it until the launcher is really shown. */
+    private var uiBuilt = false
+
+    /** A direct launch is in flight: keep the window blank until the game returns a result. */
+    private var awaitingGame = false
+
+    /** The game ended without asking for the launcher; its exit record is being looked up. */
+    private var deciding = false
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    /**
+     * Only used when [LauncherConfig.directLaunch] is on - other hosts keep plain startActivity().
+     * The result is how the game activity tells "the player asked for the launcher" (RESULT_OK,
+     * e.g. double-Back) apart from the game simply ending (the process is gone: RESULT_CANCELED).
+     */
+    private val gameLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            onGameReturned(result.resultCode)
+        }
+
+    /** Safety net: if the game never covered the launcher, stop waiting and show the UI. */
+    private val handOffWatchdog = Runnable {
+        if (awaitingGame && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            Log.w(LauncherLog.tag, "direct launch: game did not take over - showing the launcher")
+            awaitingGame = false
+            onLauncherVisible()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         config = LauncherHost.config
-        setContentView(R.layout.activity_launcher)
-
         prefs = getSharedPreferences(config.prefsName, Context.MODE_PRIVATE)
+
+        // A fresh start (not a re-creation) of a direct-launch host whose game has proven it boots:
+        // go straight to the game. The UI is not inflated at all - it is built the first time the
+        // launcher is actually shown (onLauncherVisible), so nothing of it flashes on screen.
+        if (savedInstanceState == null && directLaunchAllowed()) {
+            LauncherLog.enabled = prefs.getBoolean(KEY_DEBUG, false)
+            loadPersistedSelections()
+            setHandOffWindow(true)
+            if (launchGame(currentAspect(), prefs.getBoolean(KEY_FPS, false), prefs.getBoolean(KEY_DEBUG, false))) {
+                Log.i(LauncherLog.tag, "direct launch: game started, launcher UI deferred")
+                awaitingGame = true
+                handler.postDelayed(handOffWatchdog, HANDOFF_WATCHDOG_MS)
+                return
+            }
+            setHandOffWindow(false)
+        }
+        buildUi()
+
+        // Smoke-test / shortcut hook: the game activity is typically not exported, so
+        // `adb shell am start` cannot target it directly. Launching the launcher with
+        //   --ez autoplay true [-e aspect 16:9] [--ez fps true] [--ez debug true]
+        // starts the game straight away with those settings.
+        val i = intent
+        if (i != null && i.getBooleanExtra(EXTRA_AUTOPLAY, false)) {
+            val aspectValues = config.aspectOptions.map { it.value }
+            val aspect = i.getStringExtra(EXTRA_ASPECT_SHORT)?.takeIf { it in aspectValues }
+                ?: currentAspect()
+            val fps = i.getBooleanExtra(EXTRA_FPS_SHORT, fpsSwitch.isChecked)
+            val debug = i.getBooleanExtra(EXTRA_DEBUG_SHORT, debugSwitch.isChecked)
+            // Host options join the same shortcut vocabulary: `-e opt_<key> <value>` overrides one
+            // for this launch only (nothing is persisted), so a smoke test can sweep an option
+            // without touching what the player picked.
+            val options = config.gameOptions.mapIndexed { index, option ->
+                val override = i.getStringExtra(option.prefsKey)
+                    ?.takeIf { v -> option.choices.any { it.value == v } }
+                override ?: option.choices[optionIndices[index]].value
+            }
+            Log.i(LauncherLog.tag, "autoplay requested aspect=$aspect fps=$fps debug=$debug " +
+                "options=$options")
+            launchGame(aspect, fps, debug, options)
+        }
+    }
+
+    /** Inflates and wires the main screen. Runs at most once per Activity instance. */
+    private fun buildUi() {
+        if (uiBuilt) return
+        uiBuilt = true
+        setContentView(R.layout.activity_launcher)
 
         findViewById<ImageView>(R.id.pl_icon).setImageResource(config.iconRes)
         findViewById<TextView>(R.id.pl_title).text = config.gameTitle
@@ -114,7 +199,8 @@ class LauncherActivity : AppCompatActivity() {
             )
         }
         OptionRows.goneIfBlank(
-            findViewById(R.id.pl_save_and_cloud_notice), getText(R.string.pl_save_and_cloud_notice)
+            findViewById(R.id.pl_save_and_cloud_notice),
+            getText(if (config.cloudBackupEnabled) R.string.pl_save_and_cloud_notice else R.string.pl_save_notice_no_cloud)
         )
         fpsSwitch = findViewById(R.id.pl_fps_switch)
         debugSwitch = findViewById(R.id.pl_debug_switch)
@@ -154,7 +240,22 @@ class LauncherActivity : AppCompatActivity() {
         debugSwitch.setOnCheckedChangeListener { _, _ -> persist() }
 
         play.setOnClickListener { launchGame(currentAspect(), fpsSwitch.isChecked, debugSwitch.isChecked) }
-        cloud.setOnClickListener { startActivity(Intent(this, CloudBackupActivity::class.java)) }
+        if (config.cloudBackupEnabled) {
+            cloud.setOnClickListener { startActivity(Intent(this, CloudBackupActivity::class.java)) }
+        } else {
+            cloud.visibility = View.GONE
+        }
+        if (config.directLaunch) {
+            val always = findViewById<MaterialSwitch>(R.id.pl_always_launcher_switch)
+            always.visibility = View.VISIBLE
+            always.isChecked = prefs.getBoolean(KEY_ALWAYS_LAUNCHER, false)
+            always.setOnCheckedChangeListener { _, checked ->
+                prefs.edit().putBoolean(KEY_ALWAYS_LAUNCHER, checked).apply()
+            }
+            OptionRows.goneIfBlank(
+                findViewById(R.id.pl_always_launcher_hint), getText(R.string.pl_always_launcher_hint), always
+            )
+        }
         findViewById<MaterialButton>(R.id.pl_save_management_button).setOnClickListener {
             startActivity(Intent(this, SaveManagementActivity::class.java))
         }
@@ -186,29 +287,138 @@ class LauncherActivity : AppCompatActivity() {
             }
         }
         buildOptionScreenButtons(findViewById(R.id.pl_option_screens_container))
+    }
 
-        // Smoke-test / shortcut hook: the game activity is typically not exported, so
-        // `adb shell am start` cannot target it directly. Launching the launcher with
-        //   --ez autoplay true [-e aspect 16:9] [--ez fps true] [--ez debug true]
-        // starts the game straight away with those settings.
-        val i = intent
-        if (i != null && i.getBooleanExtra(EXTRA_AUTOPLAY, false)) {
-            val aspect = i.getStringExtra(EXTRA_ASPECT_SHORT)?.takeIf { it in aspectValues }
-                ?: currentAspect()
-            val fps = i.getBooleanExtra(EXTRA_FPS_SHORT, fpsSwitch.isChecked)
-            val debug = i.getBooleanExtra(EXTRA_DEBUG_SHORT, debugSwitch.isChecked)
-            // Host options join the same shortcut vocabulary: `-e opt_<key> <value>` overrides one
-            // for this launch only (nothing is persisted), so a smoke test can sweep an option
-            // without touching what the player picked.
-            val options = config.gameOptions.mapIndexed { index, option ->
-                val override = i.getStringExtra(option.prefsKey)
-                    ?.takeIf { v -> option.choices.any { it.value == v } }
-                override ?: option.choices[optionIndices[index]].value
-            }
-            Log.i(LauncherLog.tag, "autoplay requested aspect=$aspect fps=$fps debug=$debug " +
-                "options=$options")
-            launchGame(aspect, fps, debug, options)
+    // ---------------------------------------------------------------- direct launch
+
+    /**
+     * Cold-start gate for [LauncherConfig.directLaunch]: opted in, not switched off by the player,
+     * not an autoplay request (that path has its own settings), the game has confirmed a successful
+     * launch, and the platform has no unreported unclean game exit - a crash on the way in always
+     * lands in the launcher, so a boot-crash loop cannot lock the player out of it.
+     */
+    private fun directLaunchAllowed(): Boolean {
+        if (!config.directLaunch) return false
+        val suffix = config.gameProcessSuffix ?: return false
+        if (intent?.getBooleanExtra(EXTRA_AUTOPLAY, false) == true) return false
+        if (prefs.getBoolean(KEY_ALWAYS_LAUNCHER, false)) {
+            Log.i(LauncherLog.tag, "direct launch: off (always start with launcher)")
+            return false
         }
+        if (!LauncherContract.launchConfirmedFile(this).isFile) {
+            Log.i(LauncherLog.tag, "direct launch: no launch confirmation yet - showing the launcher")
+            return false
+        }
+        val unclean = CrashReporter.uncleanGameExitSince(
+            this, "$packageName$suffix", prefs.getLong(KEY_LAST_EXIT_SEEN, 0L)
+        )
+        if (unclean != null) {
+            Log.w(LauncherLog.tag, "direct launch: unreported unclean game exit " +
+                "(${CrashReporter.describe(unclean)}) - showing the launcher")
+            withdrawLaunchConfirmation()
+            return false
+        }
+        return true
+    }
+
+    /** Fills the selection state [launchGame] reads, from prefs, without any UI. */
+    private fun loadPersistedSelections() {
+        val aspectValues = config.aspectOptions.map { it.value }
+        aspectIndex = aspectValues.indexOf(prefs.getString(KEY_ASPECT, config.defaultAspectValue))
+            .let { if (it < 0) 0 else it }
+        optionIndices = IntArray(config.gameOptions.size) { index ->
+            val option = config.gameOptions[index]
+            option.indexOf(prefs.getString(option.prefsKey, option.defaultValue))
+        }
+        config.assetManagement?.let { assets ->
+            assetValue = prefs.getString(assets.prefsKey, assets.defaultTierValue)
+                ?.takeIf { assets.tier(it) != null } ?: assets.defaultTierValue
+        }
+    }
+
+    /**
+     * While the launcher is only a hand-off point (direct start, or deciding how the game ended)
+     * its window is plain black - the colour the game's own window starts with - and any UI that
+     * already exists is hidden, so the player never sees launcher chrome flash past.
+     */
+    private fun setHandOffWindow(blank: Boolean) {
+        if (blank) {
+            window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+        } else {
+            val ta = obtainStyledAttributes(intArrayOf(android.R.attr.windowBackground))
+            val bg = ta.getDrawable(0)
+            ta.recycle()
+            window.setBackgroundDrawable(bg)
+        }
+        findViewById<View>(android.R.id.content)?.visibility = if (blank) View.INVISIBLE else View.VISIBLE
+    }
+
+    /** The game must prove itself again (see [LauncherContract.LAUNCH_CONFIRMED_PATH]). */
+    private fun withdrawLaunchConfirmation() {
+        val f = LauncherContract.launchConfirmedFile(this)
+        if (f.exists() && f.delete()) Log.i(LauncherLog.tag, "direct launch: launch confirmation withdrawn")
+    }
+
+    /**
+     * The game activity has finished (direct-launch hosts only). RESULT_OK = the player asked for
+     * the launcher; anything else means the game process ended, and how it ended decides between
+     * closing the app (clean exit, e.g. the game's own Quit) and showing the launcher (crash).
+     */
+    private fun onGameReturned(resultCode: Int) {
+        awaitingGame = false
+        handler.removeCallbacks(handOffWatchdog)
+        if (resultCode == RESULT_OK) {
+            Log.i(LauncherLog.tag, "game activity returned RESULT_OK - showing the launcher")
+            return
+        }
+        // "Always start with launcher" is the classic behaviour in full: come back to the launcher.
+        if (prefs.getBoolean(KEY_ALWAYS_LAUNCHER, false)) return
+        val suffix = config.gameProcessSuffix ?: return
+        deciding = true
+        setHandOffWindow(true)
+        pollGameExit("$packageName$suffix", prefs.getLong(KEY_GAME_LAUNCHED_AT, 0L), 0)
+    }
+
+    /**
+     * ApplicationExitInfo is recorded asynchronously after the process dies, so the first look can
+     * come back empty; ask again every [EXIT_POLL_INTERVAL_MS] for up to [EXIT_POLL_ATTEMPTS]. No
+     * record at all (the game activity finished while its process lives on) shows the launcher -
+     * the safe answer.
+     */
+    private fun pollGameExit(process: String, since: Long, attempt: Int) {
+        if (isFinishing || isDestroyed) return
+        val info = CrashReporter.latestGameExitSince(this, process, since)
+        if (info == null && attempt < EXIT_POLL_ATTEMPTS) {
+            handler.postDelayed({ pollGameExit(process, since, attempt + 1) }, EXIT_POLL_INTERVAL_MS)
+            return
+        }
+        deciding = false
+        when {
+            info == null -> Log.w(LauncherLog.tag, "game ended with no exit record after " +
+                "${attempt * EXIT_POLL_INTERVAL_MS} ms - showing the launcher")
+            !CrashReporter.isUncleanGameExit(info) -> {
+                Log.i(LauncherLog.tag, "game exited cleanly (${CrashReporter.describe(info)}) - closing the app")
+                finishAndRemoveTask()
+                return
+            }
+            else -> {
+                Log.w(LauncherLog.tag, "game exited uncleanly (${CrashReporter.describe(info)}) - showing the launcher")
+                withdrawLaunchConfirmation()
+            }
+        }
+        setHandOffWindow(false)
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) onLauncherVisible()
+    }
+
+    override fun onStop() {
+        // The game has covered the launcher; the watchdog is no longer needed.
+        handler.removeCallbacks(handOffWatchdog)
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     /**
@@ -385,6 +595,16 @@ class LauncherActivity : AppCompatActivity() {
      */
     override fun onResume() {
         super.onResume()
+        if (awaitingGame || deciding) return
+        onLauncherVisible()
+    }
+
+    /** Everything that happens when the launcher is really on screen (builds a deferred UI first). */
+    private fun onLauncherVisible() {
+        if (!uiBuilt) {
+            setHandOffWindow(false)
+            buildUi()
+        }
         refreshAssetState()
         refreshScreenOptionIndices()
         refreshSubtitle()
@@ -392,7 +612,11 @@ class LauncherActivity : AppCompatActivity() {
         val suffix = config.gameProcessSuffix ?: return
         val gameProcess = "$packageName$suffix"
         val lastSeen = prefs.getLong(KEY_LAST_EXIT_SEEN, 0L)
-        val notice = CrashReporter.checkGameProcessExit(this, gameProcess, lastSeen)
+        val notice = if (config.directLaunch) {
+            CrashReporter.checkGameProcessExit(this, gameProcess, lastSeen, CrashReporter::isUncleanGameExit)
+        } else {
+            CrashReporter.checkGameProcessExit(this, gameProcess, lastSeen)
+        }
         val newest = CrashReporter.latestExitTimestamp(this, gameProcess)
         if (newest > lastSeen) prefs.edit().putLong(KEY_LAST_EXIT_SEEN, newest).apply()
         if (notice != null) {
@@ -402,6 +626,7 @@ class LauncherActivity : AppCompatActivity() {
                 getString(R.string.pl_crash_notice_nolog)
             }
             Log.w(LauncherLog.tag, "abnormal game process exit -> ${notice.summary} (log: ${notice.savedTo})")
+            if (config.directLaunch) withdrawLaunchConfirmation()
             Snackbar.make(findViewById(android.R.id.content), text, Snackbar.LENGTH_LONG).show()
         }
     }
@@ -459,12 +684,13 @@ class LauncherActivity : AppCompatActivity() {
         LauncherLog.enabled = debugSwitch.isChecked
     }
 
+    /** @return true when the game activity was started, false when a gate redirected elsewhere. */
     private fun launchGame(
         aspect: String,
         fps: Boolean,
         debug: Boolean,
         options: List<String> = currentOptionValues()
-    ) {
+    ): Boolean {
         // An interrupted whole-install move leaves a tree that can look complete to a path check
         // while a file is still missing from the middle of it, so the sentinel outranks every other
         // gate and is tested first.
@@ -472,7 +698,7 @@ class LauncherActivity : AppCompatActivity() {
             if (com.teampacheworks.launcher.deploy.DeployStorage.importInProgress(this, deploy)) {
                 Toast.makeText(this, R.string.pl_assets_import_half_done, Toast.LENGTH_LONG).show()
                 startActivity(Intent(this, DeployImportActivity::class.java))
-                return
+                return false
             }
         }
         config.assetManagement?.let { assets ->
@@ -480,7 +706,7 @@ class LauncherActivity : AppCompatActivity() {
             if (!AssetStorage.isLaunchReady(this, assets, selected)) {
                 Toast.makeText(this, R.string.pl_assets_launch_blocked, Toast.LENGTH_LONG).show()
                 startActivity(Intent(this, AssetManagementActivity::class.java))
-                return
+                return false
             }
         }
         Log.i(LauncherLog.tag, "starting game activity aspect=$aspect fps=$fps debug=$debug " +
@@ -520,7 +746,15 @@ class LauncherActivity : AppCompatActivity() {
             )
         }
         config.buildGameIntentExtras(intent, aspect, fps, debug)
-        startActivity(intent)
+        if (config.directLaunch) {
+            // commit(), not apply(): the timestamp scopes pollGameExit's exit-record lookup to THIS
+            // session and must be on disk even if this process dies while the game runs.
+            prefs.edit().putLong(KEY_GAME_LAUNCHED_AT, System.currentTimeMillis()).commit()
+            gameLauncher.launch(intent)
+        } else {
+            startActivity(intent)
+        }
+        return true
     }
 
     companion object {
@@ -530,6 +764,16 @@ class LauncherActivity : AppCompatActivity() {
 
         /** Watermark so an abnormal game-process exit is announced exactly once. */
         const val KEY_LAST_EXIT_SEEN = "last_exit_seen"
+
+        /** [LauncherConfig.directLaunch]: the Debug card's "Always start with launcher" switch. */
+        const val KEY_ALWAYS_LAUNCHER = "always_start_with_launcher"
+
+        /** [LauncherConfig.directLaunch]: wall-clock time of the last game start. */
+        const val KEY_GAME_LAUNCHED_AT = "game_launched_at"
+
+        private const val HANDOFF_WATCHDOG_MS = 5000L
+        private const val EXIT_POLL_INTERVAL_MS = 100L
+        private const val EXIT_POLL_ATTEMPTS = 30
 
         private const val EXTRA_AUTOPLAY = "autoplay"
         private const val EXTRA_ASPECT_SHORT = "aspect"
