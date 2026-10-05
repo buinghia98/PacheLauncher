@@ -1,0 +1,212 @@
+# TOUCH-GAMEPAD — adopting the on-screen gamepad (`touchpad/`)
+
+An optional module that draws a configurable on-screen Xbox-layout gamepad over a running game, and
+gives the player a drag-and-drop editor to lay it out. It is separate from `:launcher` for two
+reasons, and the first one is not negotiable:
+
+1. **It links GPL-3.0 code.** [RadialGamePad](https://github.com/Swordfish90/RadialGamePad) — the
+   same library Lemuroid uses — is GPL v3. Linking it makes the linking APK a derived work under
+   the GPL's terms **on distribution**. `:launcher` must stay something a host can adopt without
+   inheriting that, so the dependency lives here and adopting it is an explicit `include`.
+2. **A host shipping to handhelds with real sticks does not want any of it** — not the code, not
+   the coroutines dependency, not the extra activity in the APK.
+
+The rule `:launcher` has that this module keeps: **no native (`.so`) dependency may ever be added
+here either.** RadialGamePad is pure Kotlin canvas drawing, and the one thing this module cannot do
+by itself — deliver a press to a game engine — is deliberately left to the host as
+`TouchGamepadSink`.
+
+---
+
+## 1. Add the module
+
+`settings.gradle.kts` (this repo already does both):
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        // RadialGamePad is published on JitPack and nowhere else.
+        maven {
+            url = uri("https://jitpack.io")
+            content { includeGroup("com.github.Swordfish90") }
+        }
+    }
+}
+
+include(":touchpad")
+```
+
+The host app's `build.gradle`:
+
+```groovy
+implementation project(':touchpad')   // brings :launcher with it, via `api`
+```
+
+---
+
+## 2. Implement the sink
+
+This is the whole of the module's coupling to a game: one interface, two methods.
+
+```kotlin
+object NativePad : TouchGamepadSink {
+    override fun button(index: Int, pressed: Boolean) = MainActivity.nativeVPadButton(index, pressed)
+    override fun axis(index: Int, value: Int) = MainActivity.nativeVPadAxis(index, value)
+}
+```
+
+**The indices are SDL game-controller indices**, not an enum of this module's own:
+`A,B,X,Y,BACK,GUIDE,START,LS,RS,LB,RB,DPAD_UP..DPAD_RIGHT` for buttons (0..14) and
+`LEFTX,LEFTY,RIGHTX,RIGHTY,TRIGGERLEFT,TRIGGERRIGHT` for axes (0..5). That is exactly the mapping
+SDL synthesises for a virtual joystick declared as `SDL_JOYSTICK_TYPE_GAMECONTROLLER` with 6 axes,
+15 buttons and no hats, so a host on that path passes the index straight through. A host on any
+other path translates once, in its own sink, where the translation is visible.
+
+**Up is negative** on both axes, and nothing on the way through flips it — see `TouchGamepadSink`'s
+header. Both methods are called on the main thread.
+
+---
+
+## 3. Install a `TouchGamepadConfig`
+
+In `Application.onCreate`, beside `LauncherHost.install(...)` — and **in every process that draws
+the pad**. On a host that runs its game in a `:game` process that is two: the launcher process
+draws the editor, the game process draws the overlay. `Application.onCreate` runs in both, which is
+why the install belongs there and not in an Activity.
+
+```kotlin
+TouchGamepadHost.install(
+    TouchGamepadConfig(
+        layoutFileName = "mygame-touchpad-layout.txt"
+        // controls defaults to TouchGamepadLayout.XBOX_CONTROLS
+        // theme    defaults to TouchGamepadLayout.DEFAULT_THEME
+    )
+)
+```
+
+Everything else is defaulted. The fields worth knowing about:
+
+| field | default | why you would change it |
+|---|---|---|
+| `controls` | `XBOX_CONTROLS` (ten) | a game that needs a different set — see §6 |
+| `theme` | `DEFAULT_THEME` | to match your key art. **Leave `pressedColor` a neutral grey**: a press highlight in the game's own accent colour reads as the game lighting something up, not as the player touching something |
+| `layoutFileName` | `touchpad-layout.txt` | always set it; a distinctive name makes the file identifiable in a `ls` over adb |
+| `layoutDirectory` | `getExternalFilesDir(null)` | somewhere both processes can read. `filesDir` is per-process-app-private and will not do |
+| `defaultOpacity` / `defaultSizeDp` | `0.75` / `170dp` | must match what your option rows declare as *their* defaults |
+| `legacyPrefsName` | `null` | an older build's in-game editor prefs, cleared on "Reset all" so a reset cannot resurrect a layout from before the editor moved |
+
+---
+
+## 4. Declare the three launcher options and the editor screen
+
+The split is deliberate and is documented at length in `TouchGamepadSettings`' header: the launcher
+owns what a **dropdown** expresses well and what has to be known before the game starts; the editor
+owns what a dropdown cannot express at all.
+
+Put the three rows on their own `LauncherOptionScreen` — four dropdowns on the Video settings card
+would push everything else off it, and `UI-SPEC.md` forbids forking that card's layout anyway.
+
+```kotlin
+optionScreens = listOf(
+    LauncherOptionScreen(
+        key = "touchpad",
+        title = "Virtual gamepad",
+        actionLabel = "Edit layout",
+        actionActivityClass = TouchGamepadEditorActivity::class.java
+    )
+),
+gameOptions = listOf(
+    LauncherOption(
+        key = TouchGamepadSettings.OPTION_MODE,
+        label = "On-screen gamepad",
+        hint = "Auto shows it only when no controller is connected.",
+        choices = listOf(
+            LauncherOptionChoice(TouchGamepadSettings.MODE_AUTO, "Auto"),
+            LauncherOptionChoice(TouchGamepadSettings.MODE_ON, "Always on"),
+            LauncherOptionChoice(TouchGamepadSettings.MODE_OFF, "Off")
+        ),
+        defaultValue = TouchGamepadSettings.MODE_AUTO,
+        screenKey = "touchpad"
+    ),
+    LauncherOption(
+        key = TouchGamepadSettings.OPTION_OPACITY,
+        label = "Opacity",
+        hint = "How far the overlay sits back from the game.",
+        choices = listOf(/* whole percent: "50", "75", "100" */),
+        defaultValue = "75",
+        screenKey = "touchpad"
+    ),
+    LauncherOption(
+        key = TouchGamepadSettings.OPTION_SIZE,
+        label = "Size",
+        hint = "The base size every control is scaled from.",
+        choices = listOf(/* dp: "140", "170", "200" */),
+        defaultValue = "170",
+        screenKey = "touchpad"
+    )
+)
+```
+
+Use the `TouchGamepadSettings.OPTION_*` / `MODE_*` constants rather than the literal strings. Both
+sides must spell them identically or the option silently reverts to its default.
+
+The opacity choice values are **whole percent** and the size choice values are **dp**, because
+`TouchGamepadSettings.resolve` parses them that way.
+
+`Auto` is worth defaulting to: a port typically ships to two audiences at once — handhelds with a
+built-in pad, where an overlay is pure obstruction, and tablets, where it is the only way to play.
+`hasPhysicalGamepad` reads the device rather than asking either group to flip a switch they cannot
+see the need for.
+
+---
+
+## 5. Attach the overlay
+
+In the game Activity's `onCreate`, **after** `super.onCreate` (the game's content view has to exist
+first) and after whatever the host does to make a joystick exist on the other end of the sink:
+
+```kotlin
+TouchGamepadOverlay.attach(this, TouchGamepadSettings.resolve(this, intent), NativePad)
+```
+
+`attach` does nothing when the resolved settings say the pad is off, and nothing when no config was
+installed, so the caller does not branch on either. `TouchGamepadOverlay.setVisible(false)` hides it
+at runtime and releases everything held; `detach()` removes it.
+
+---
+
+## 6. Building your own control list
+
+Only if the ten-control Xbox pad is genuinely wrong for the game. Read
+`TouchGamepadLayout.XBOX_CONTROLS`' header **before** choosing an order, because the z-order rule is
+the least obvious thing in the module and getting it wrong produces a bug that does not look like a
+z-order bug:
+
+> **The more dead space a control's view box has, the LOWER it goes.**
+
+A single button's view box is 2.63x the button it draws, so 86% of it draws nothing. A control like
+that on top of a dial does not steal the dial's presses — it *deletes* them. Cost-of-mis-press is
+the tie-breaker **within** a group, not the top-level rule.
+
+`TouchGamepadLayout` gives you `singleButton`, `stick`, `cross` and `faceButtons` to build entries
+with. Reuse the `ID_*` constants for the sticks, the d-pad and the two triggers: those are the ids
+`TouchGamepadOverlay` switches on to do something other than "press button N".
+
+Control **keys are persistence keys**. Renaming one silently resets that control to its default for
+every player who has already laid out their pad.
+
+---
+
+## 7. Sanity-check before shipping
+
+1. The pad draws where the editor put it, on **at least two aspect ratios**. One device is not
+   enough — see `TOUCH-GAMEPAD-SPEC.md` §5.
+2. A touch that misses every control reaches the game underneath.
+3. Multi-touch: one finger on the stick while another presses a button; one finger pressing A+B on
+   the diamond at once.
+4. A finger that slides off a button and releases outside it does not leave the input stuck down.
+5. `TOUCH-GAMEPAD-SPEC.md` §5's pairwise arithmetic, at the **largest** size the size row offers —
+   not the default. The default clearing is not evidence about the top bracket.
+6. The GPL question in §0 has an answer you are comfortable with.

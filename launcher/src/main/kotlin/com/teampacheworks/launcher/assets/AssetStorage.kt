@@ -54,6 +54,15 @@ object AssetStorage {
         }
     }
 
+    /**
+     * Install an asset PACKAGE -- the older, narrower route, kept as library API and reached by no
+     * built-in screen any more.
+     *
+     * The Manage Assets screen used to carry a button for it. It stopped earning one once the same
+     * screen offered a whole-install import and an on-device build: three buttons where two of them
+     * did a superset of the third is a choice the player has no way to make correctly. A host whose
+     * game really does ship per-tier asset packages can still call this itself.
+     */
     fun importTree(context: Context, config: AssetManagementConfig, treeUri: Uri): Long {
         val source = requireNotNull(DocumentFile.fromTreeUri(context, treeUri)) {
             "The selected folder cannot be opened"

@@ -155,6 +155,15 @@ data class LauncherConfig(
      * bundle and this is the route that needs no terminal.
      */
     val deployImport: com.teampacheworks.launcher.deploy.DeployImportConfig? = null,
+    /**
+     * On-device build of the install tree from the player's own PC game files. Non-null adds the
+     * "Build data from PC game files" button to the Manage Assets screen and the screen behind it;
+     * null leaves the launcher exactly as it was.
+     *
+     * The sibling of [deployImport], not a replacement for it: that one moves a folder a PC script
+     * already assembled, this one assembles it here. A host may offer either, both, or neither.
+     */
+    val dataBuild: com.teampacheworks.launcher.databuild.DataBuildConfig? = null,
     val gpuDriverManagement: GpuDriverConfig? = null,
     /**
      * Per-mod on/off management. Non-null adds the "Manage mods" button and screen, and makes the
