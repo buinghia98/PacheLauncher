@@ -57,12 +57,19 @@ interface TouchGamepadSink {
  * there and not in an Activity.
  *
  * @param controls The pad, in the order they are added to the container -- which is also their
- *   z-order. Defaults to [TouchGamepadLayout.XBOX_CONTROLS], the ten-control Xbox arrangement; a
- *   host wanting a different set builds its own list with [TouchGamepadLayout.singleButton] /
- *   [TouchGamepadLayout.stick] and must read [TouchGamepadLayout.Kind]'s and
- *   [TouchGamepadLayout.BUTTON_HIT_RATIO]'s notes on z-order before choosing an order.
- * @param theme The pad's colours. The button variant (no backing disc) is derived from it by
- *   [TouchGamepadLayout.themesFor]; a host supplies one theme, not two.
+ *   z-order. Defaults to [TouchGamepadLayout.XBOX_CONTROLS], the ten-control Xbox arrangement
+ *   for wide screens; [TouchGamepadLayout.STACKED_CONTROLS] is the same ten stacked in three bands
+ *   for near-square panels. A host wanting a different set builds its own list from
+ *   [TouchGamepadLayout.singleButton] / [TouchGamepadLayout.menuButton] /
+ *   [TouchGamepadLayout.stick] / [TouchGamepadLayout.cross] / [TouchGamepadLayout.faceButtons] and
+ *   must read [TouchGamepadLayout.XBOX_CONTROLS]' note on z-order before choosing an order.
+ * @param theme The pad's PALETTE, painted onto the Kenney Style C sprites by [TouchGamepadSprite]
+ *   in RadialGamePad's own colour roles (body `normalColor`, pressed `pressedColor`, stick well
+ *   `backgroundColor`, outline + label `textColor`). RadialGamePad itself draws nothing.
+ * @param hiddenByDefault Keys of the controls the GAME does not show until the player switches
+ *   them on in the editor ("Visible"). Empty by default: every control is visible. A hidden control
+ *   is not created in game at all -- no view, no touch target, no events. Only the default: a
+ *   saved layout's `<key>_visible` always wins.
  * @param layoutFileName Name of the small text file the editor writes and the game process reads.
  *   Include the game's name: two ports installed on one device share external files storage only if
  *   the host points them at the same directory, but a distinctive name costs nothing and makes the
@@ -74,6 +81,13 @@ interface TouchGamepadSink {
  * @param defaultOpacity View alpha used when the launcher's opacity option is absent, 0.15..1.
  * @param defaultSizeDp The size bracket used when the launcher's size option is absent. Every
  *   control's own [TouchGamepadLayout.Control.sizeFraction] multiplies this.
+ * @param sizeRangeDp When non-null, the launcher's size option is CLAMPED into it (not rejected:
+ *   a value saved under an older, larger ceiling comes back as the new maximum instead of silently
+ *   snapping to the default). Set it to the largest size at which your default layout still has
+ *   no overlapping press targets on your narrowest target panel. Null: no clamp.
+ * @param scaleRange The editor's per-control size multiplier range, and the clamp the layout
+ *   reader applies to it. Keep the top at 1 when [sizeRangeDp] is a hard ceiling, or a single
+ *   control can be walked back past it.
  * @param legacyPrefsName An older build's in-game editor prefs file, cleared by
  *   [TouchGamepadSettings.clearLayout] so a reset cannot resurrect a layout from before the editor
  *   moved. Null on a new adoption, which is the common case.
@@ -85,6 +99,9 @@ data class TouchGamepadConfig(
     val layoutDirectory: (Context) -> File? = { it.getExternalFilesDir(null) },
     val defaultOpacity: Float = 0.75f,
     val defaultSizeDp: Float = 170f,
+    val sizeRangeDp: ClosedFloatingPointRange<Float>? = null,
+    val scaleRange: ClosedFloatingPointRange<Float> = DEFAULT_SCALE_RANGE,
+    val hiddenByDefault: Set<String> = emptySet(),
     val legacyPrefsName: String? = null
 ) {
     init {
@@ -94,10 +111,19 @@ data class TouchGamepadConfig(
                 controls.map { it.key }.groupBy { it }.filterValues { it.size > 1 }.keys
         }
         require(layoutFileName.isNotBlank()) { "TouchGamepadConfig layoutFileName is blank" }
+        val keys = controls.map { it.key }.toSet()
+        require(keys.containsAll(hiddenByDefault)) {
+            "TouchGamepadConfig hiddenByDefault names unknown controls: ${hiddenByDefault - keys}"
+        }
+        require(scaleRange.start > 0f && scaleRange.start <= scaleRange.endInclusive) {
+            "TouchGamepadConfig scaleRange is empty or not positive: $scaleRange"
+        }
     }
 
-    /** The dial and button themes derived from [theme], computed once. */
-    val themes: TouchGamepadLayout.Themes = TouchGamepadLayout.themesFor(theme)
+    companion object {
+        /** Half to 1.6x of the launcher's size bracket, per control. */
+        val DEFAULT_SCALE_RANGE: ClosedFloatingPointRange<Float> = 0.5f..1.6f
+    }
 }
 
 /**

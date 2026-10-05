@@ -90,6 +90,20 @@
                 app:iconSize="20dp" />
         </LinearLayout>
 
+        <!-- Whether the GAME shows the selected control at all. The same row pattern as the
+             launcher's own switches: a full-width MaterialSwitch, 48dp tall. Hidden controls stay
+             in this editor, dimmed, so they can be switched back on. -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/pl_pad_editor_visible"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:checked="true"
+            android:enabled="false"
+            android:text="@string/pl_pad_editor_visible"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="14sp" />
+
         <!-- Reset all is left, the two per-selection actions are right: the destructive one is the
              one you should have to reach for. -->
         <LinearLayout

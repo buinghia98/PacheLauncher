@@ -15,6 +15,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import kotlin.math.roundToInt
 
@@ -51,7 +52,10 @@ import kotlin.math.roundToInt
  * * resetting is three things and not one. Size and position are two edits made by two different
  *   gestures, and a single Reset that undid both for every control would make "put this one back
  *   where it was" cost the nine controls that were already right. The two narrow resets act on the
- *   SELECTED control alone; Reset all is the whole-pad one.
+ *   SELECTED control alone; Reset all is the whole-pad one;
+ * * a "Visible" switch decides whether the GAME shows the selected control at all. Here every
+ *   control stays on screen -- a hidden one drawn at [TouchGamepadLayout.HIDDEN_EDITOR_ALPHA] -- so
+ *   it can still be selected, moved, resized and switched back on.
  *
  * It runs in the LAUNCHER process (no `android:process` on its manifest entry), which is why what it
  * saves goes to a file both processes read rather than to SharedPreferences -- see
@@ -78,9 +82,11 @@ class TouchGamepadEditorActivity : AppCompatActivity() {
     /** The two per-selection resets. Dead until a control is selected, like the slider beside them. */
     private lateinit var resetSizeButton: MaterialButton
     private lateinit var resetButton: MaterialButton
+    private lateinit var visibleSwitch: MaterialSwitch
 
     /** Set while the slider is being written programmatically, so it does not echo back a change. */
     private var suppressSlider = false
+    private var suppressVisible = false
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,7 +106,11 @@ class TouchGamepadEditorActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
         )
-        for (pad in pads.pads) pad.hit.setOnTouchListener(dragHandler(pad))
+        for (pad in pads.pads) {
+            // Intercept, or the RadialGamePad child takes every touch before the listener is asked.
+            pad.hit.interceptTouches = true
+            pad.hit.setOnTouchListener(dragHandler(pad))
+        }
 
         root.addView(
             buildPanel(root),
@@ -139,6 +149,20 @@ class TouchGamepadEditorActivity : AppCompatActivity() {
         sizeSlider = panel.findViewById(R.id.pl_pad_editor_size)
         resetSizeButton = panel.findViewById(R.id.pl_pad_editor_reset_size)
         resetButton = panel.findViewById(R.id.pl_pad_editor_reset)
+        visibleSwitch = panel.findViewById(R.id.pl_pad_editor_visible)
+
+        visibleSwitch.setOnCheckedChangeListener { _, checked ->
+            if (suppressVisible) return@setOnCheckedChangeListener
+            val control = selected ?: return@setOnCheckedChangeListener
+            placements[control.key] = placement(control).copy(visible = checked)
+            applyGeometry()
+        }
+
+        // Bound to the same range readLayout() clamps with, so the two cannot drift: a slider that
+        // let the player pick a scale the loader then clamped away would silently discard the edit.
+        val scales = TouchGamepadHost.config.scaleRange
+        sizeSlider.valueFrom = scales.start
+        sizeSlider.valueTo = scales.endInclusive
 
         sizeSlider.addOnChangeListener { _, value, _ ->
             if (suppressSlider) return@addOnChangeListener
@@ -162,6 +186,7 @@ class TouchGamepadEditorActivity : AppCompatActivity() {
             val default = TouchGamepadSettings.defaultPlacement(control)
             placements[control.key] = placement(control)
                 .copy(xFraction = default.xFraction, yFraction = default.yFraction)
+            showSelection(control)
             applyGeometry()
         }
         panel.findViewById<MaterialButton>(R.id.pl_pad_editor_reset_all).setOnClickListener {
@@ -181,10 +206,10 @@ class TouchGamepadEditorActivity : AppCompatActivity() {
     /**
      * One control's drag handle: its own press target.
      *
-     * Returning true from every event is what keeps [com.swordfish.radialgamepad.library.RadialGamePad]
-     * from ever seeing a press here -- `View.dispatchTouchEvent` consults the listener first, so
-     * `onTouchEvent` is never reached. This screen must not press a button; there is no game process
-     * in the launcher to press one on.
+     * [TouchGamepadLayout.HitBox.interceptTouches] is what keeps the RadialGamePad from ever seeing a
+     * press here: a ViewGroup offers its children the event BEFORE its own listener, and the pad's
+     * `onTouchEvent` returns true for everything. This screen must not press a button; there is no
+     * game process in the launcher to press one on.
      *
      * The delta is applied to the placement FRACTIONS rather than to the view's position, so what
      * the finger moves and what gets saved are the same number, and the clamp
@@ -240,23 +265,27 @@ class TouchGamepadEditorActivity : AppCompatActivity() {
         sizeSlider.isEnabled = true
         resetSizeButton.isEnabled = true
         resetButton.isEnabled = true
+        visibleSwitch.isEnabled = true
+        suppressVisible = true
+        visibleSwitch.isChecked = placement(control).visible
+        suppressVisible = false
         // Snapped to the slider's own 0.01 step: Slider.setValue rejects a value off the step grid
         // with an IllegalStateException, and a scale read back from a hand-edited layout file has no
         // reason to be on it.
         sizeSlider.value = ((placement(control).scale * 100f).roundToInt() / 100f)
-            .coerceIn(TouchGamepadSettings.SCALE_MIN, TouchGamepadSettings.SCALE_MAX)
+            .coerceIn(sizeSlider.valueFrom, sizeSlider.valueTo)
         suppressSlider = false
     }
 
     /**
      * Re-place every control, then lift the selected one to full opacity so it is obvious which one
-     * the slider is about. A ring or a glow would need a custom drawable over a GPL library's view;
-     * opacity is already a property this screen owns.
+     * the slider is about -- half opacity if it is hidden, so it still reads as hidden. The sprite
+     * is what is lifted: the RadialGamePad is the invisible input layer and stays at alpha 0.
      */
     private fun applyGeometry() {
         TouchGamepadLayout.apply(this, pads, settings, placements)
-        val key = selected?.key ?: return
-        pads.pad(key)?.view?.alpha = 1f
+        val control = selected ?: return
+        pads.pad(control.key)?.sprite?.alpha = if (placement(control).visible) 1f else .5f
     }
 
     /**

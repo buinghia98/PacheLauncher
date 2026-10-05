@@ -19,6 +19,12 @@ plugins {
  * ever be added here either. RadialGamePad is pure Kotlin canvas drawing, and the one thing this
  * module cannot do by itself -- deliver a press to a game engine -- is deliberately left to the
  * host as [TouchGamepadSink]. ABI choices stay entirely on the host's game side.
+ *
+ * WHAT IS DRAWN IS NOT GPL. RadialGamePad is used as an invisible INPUT layer only (touch, stick
+ * maths, cross diagonals, haptics, events); every pixel the player sees is a Kenney "Mobile
+ * Controls" Style C VectorDrawable (CC0 -- see KENNEY-LICENSE.txt beside this file), regenerated
+ * from the pack's SVGs by tools/kenney_controls_to_vector.py. That changes nothing about the
+ * linking argument above: the APK still links RadialGamePad.
  */
 android {
     namespace = "com.teampacheworks.launcher.touch"

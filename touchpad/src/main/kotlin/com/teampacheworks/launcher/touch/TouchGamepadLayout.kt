@@ -3,6 +3,8 @@ package com.teampacheworks.launcher.touch
 import android.content.Context
 import android.graphics.Color
 import android.util.TypedValue
+import android.view.MotionEvent
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.swordfish.radialgamepad.library.RadialGamePad
@@ -12,52 +14,45 @@ import com.swordfish.radialgamepad.library.config.PrimaryDialConfig
 import com.swordfish.radialgamepad.library.config.RadialGamePadConfig
 import com.swordfish.radialgamepad.library.config.RadialGamePadTheme
 import com.swordfish.radialgamepad.library.haptics.HapticConfig
+import com.teampacheworks.launcher.touch.TouchGamepadSprite.Body
+import com.teampacheworks.launcher.touch.TouchGamepadSprite.FaceButton
+import com.teampacheworks.launcher.touch.TouchGamepadSprite.Label
+import com.teampacheworks.launcher.touch.TouchGamepadSprite.Skin
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
- * What the on-screen gamepad LOOKS like, with no opinion on where its events go.
+ * What the on-screen gamepad LOOKS like and where it sits, with no opinion on where its events go.
  *
  * Two callers build this pad, and they must build the same one down to the pixel: the game process
  * draws it over the running game ([TouchGamepadOverlay]) and the launcher process draws it over a
- * black screen so the player can position it ([TouchGamepadEditorActivity]). An editor whose
- * preview is a near-miss of the real pad is worse than no editor, so the configuration, the theme,
- * the default placements and the geometry maths all live here exactly once and neither caller is
- * allowed its own copy.
+ * black screen so the player can position it ([TouchGamepadEditorActivity]). So the controls, the
+ * skin, the default placements and the geometry maths all live here exactly once.
  *
- * The split with [TouchGamepadOverlay] is: this file knows controls, sizes and positions; that file
- * knows where a press goes.
+ * TWO LAYERS PER CONTROL
  *
- * ONE VIEW PER CONTROL
+ * * INPUT: one [RadialGamePad] per control -- touch tracking, stick maths, the cross's diagonals,
+ *   multi-press on the ABXY diamond, haptics, and the event Flow the sink is fed from. It paints
+ *   nothing ([INPUT_ONLY_THEME]) and sits at alpha 0.
+ * * LOOK: a [TouchGamepadSprite] under it -- Kenney "Mobile Controls" Style C (CC0) -- sized to the
+ *   DRAWN control and mirroring pressed state from the same events.
  *
- * Every control that a player can meaningfully want somewhere else is its own [RadialGamePad]: a
- * config with ONE primary dial and NO secondary dials, in a view box sized to that dial, positioned
- * absolutely in a [FrameLayout]. The alternative -- one pad carrying several secondary dials --
- * cannot work here, because RadialGamePad decides where a secondary dial sits from its socket
- * index, so inside such a cluster nothing can be moved at all and an editor can only shove whole
- * clusters around.
+ * Both are derived from one [TouchGamepadSprite.Skin] per control ([inputConfig]), so the two layers
+ * cannot disagree about which id is where.
  *
- * The two exceptions are the two things that are one control in the hand as well as on screen: the
- * D-pad (a single `CrossDial`, four directions and their diagonals) and the ABXY diamond (a single
- * `PrimaryButtonsDial`, whose composite touch anchors are what let one thumb press A+B).
+ * ONE VIEW PER CONTROL. Every control is its own RadialGamePad with ONE primary dial in a view box
+ * sized to that dial, positioned absolutely in a [FrameLayout]. A cluster pad with secondary dials
+ * cannot work here: RadialGamePad places a secondary dial by socket index, so nothing inside a
+ * cluster could be moved. The two exceptions are the D-pad (one `CrossDial`) and the ABXY diamond
+ * (one `PrimaryButtonsDial`, whose composite anchors let one thumb press A+B).
  *
- * Three things fall out of that, all of them improvements over a cluster row:
- *
- * * **Placement is over the WHOLE screen.** RadialGamePad clamps a cluster's offset to the free
- *   space inside its own share of whatever band it was given, which on an unusual aspect ratio
- *   leaves margins the editor refuses to place anything in. Positions here are the control's CENTRE
- *   as a FRACTION of the real screen, clamped only so the press target stays on screen, so the same
- *   saved layout lands in the same relative place on any aspect ratio.
- * * **The overlay swallows far less.** `RadialGamePad.onTouchEvent` returns true unconditionally,
- *   so a full-width cluster row consumes every touch inside it whether or not it hit a dial. Here
- *   only the control-sized press targets consume, and everything between them reaches the surface
- *   underneath.
- * * **A press can be highlighted in a colour that belongs to the overlay** ([DEFAULT_THEME]).
+ * Placement is the control's CENTRE as a FRACTION of the whole screen, clamped only so the press
+ * target stays on screen -- see [place] and docs/TOUCH-GAMEPAD-SPEC.md.
  */
 object TouchGamepadLayout {
 
     // -------------------------------------------------------------------------------------------
-    // SDL indices. See TouchGamepadSink's header for why these are SDL's numbers and not an enum of
-    // this module's own.
+    // SDL indices. See TouchGamepadSink's header for why these are SDL's numbers.
     // -------------------------------------------------------------------------------------------
 
     object SdlButton {
@@ -88,12 +83,9 @@ object TouchGamepadLayout {
     }
 
     /**
-     * Composite-control ids, above the 0..14 button range so they can never collide with it.
-     *
-     * These are the ids [TouchGamepadOverlay] switches on to do something other than "press button
-     * N": the two sticks and the d-pad because one control produces several SDL values, and the two
-     * triggers because SDL makes them axes while a touch overlay draws them as buttons. A host
-     * building its own control list reuses these ids to get that handling.
+     * Composite-control ids, above the 0..14 button range so they can never collide with it: the
+     * sticks and the d-pad produce several SDL values, the triggers are SDL axes drawn as buttons.
+     * A host building its own control list reuses these ids to get [TouchGamepadOverlay]'s handling.
      */
     const val ID_LEFT_STICK = 100
     const val ID_RIGHT_STICK = 101
@@ -101,22 +93,34 @@ object TouchGamepadLayout {
     const val ID_LT = 110
     const val ID_RT = 111
 
+    /**
+     * D-pad axis threshold: past it a direction is down. One constant for the sink dispatch and the
+     * sprite's lit arms, so what is shown pressed is what the game was told.
+     */
+    const val DPAD_THRESHOLD = .5f
+
+    /**
+     * The fraction of the normal opacity a HIDDEN control is drawn at -- which only ever happens in
+     * the editor, because the game never builds a hidden control (see [visibleControls]).
+     */
+    const val HIDDEN_EDITOR_ALPHA = .3f
+
+    /** Where an outside-the-circle d-pad touch is put back: safely inside the Cross's bound. */
+    const val CROSS_SQUARE_CLAMP = .9f
+
     // -------------------------------------------------------------------------------------------
     // Theme
     // -------------------------------------------------------------------------------------------
 
     /**
-     * The default palette: deliberately dark and low-contrast, because this sits on top of a game
-     * whose art is the point, and the launcher's opacity option moves the whole thing further back
-     * when a player wants that.
+     * The default PALETTE, painted by [TouchGamepadSprite] in the roles RadialGamePad itself gave
+     * these colours: body fill `normalColor`, pressed fill `pressedColor`, stick well
+     * `backgroundColor`, outline + label `textColor`. Deliberately dark and low-contrast, because
+     * this sits on top of a game whose art is the point.
      *
-     * PRESSED IS A NEUTRAL WHITE-GREY, and that is the one colour choice here worth defending. The
-     * reference port first used the game's own accent gold, and a pressed button then looked like
-     * something the game had lit up rather than something the player was touching -- every prompt
-     * and every menu highlight in that game was the same colour. A light grey belongs to no one but
-     * the overlay, which is exactly what a press indicator should be. A host overriding
-     * [TouchGamepadConfig.theme] to match its key art should leave `pressedColor` alone for this
-     * reason.
+     * PRESSED IS A NEUTRAL WHITE-GREY. A press highlight in the game's own accent colour reads as
+     * the game lighting something up rather than as the player touching something. A host
+     * overriding [TouchGamepadConfig.theme] to match its key art should leave `pressedColor` alone.
      */
     val DEFAULT_THEME = RadialGamePadTheme(
         normalColor = Color.argb(170, 32, 28, 40),
@@ -130,21 +134,25 @@ object TouchGamepadLayout {
     )
 
     /**
-     * The two themes a pad is drawn with: one for real dials, one for single buttons.
+     * RadialGamePad as a pure INPUT layer: every colour transparent, so it paints nothing while its
+     * touch handling, stick maths, cross diagonals, multi-press and haptics stay exactly as they are.
      *
-     * They differ in exactly one thing -- a single button has no backing disc. Its view box is 2.63x
-     * the button it draws ([Kind.BUTTON]), so a background painted on that box would be a large
-     * visible circle around a small button, advertising dead space that (with the design in [Pad])
-     * is not even touch-sensitive.
+     * Verified against the 2.0.0 bytecode: fills come from [RadialGamePadTheme] colours only,
+     * `FillStrokePaint.buildStrokePaint` returns no paint at all for colour 0, labels use
+     * `textColor`, and the cross / button icon drawables are tinted with `textColor` -- so with all
+     * of them 0 nothing visible is left. The view is additionally kept at alpha 0 in [place] so the
+     * framework skips its draw pass; alpha does not affect touch dispatch (visibility would).
      */
-    class Themes(val dial: RadialGamePadTheme, val button: RadialGamePadTheme)
-
-    fun themesFor(theme: RadialGamePadTheme) = Themes(
-        dial = theme,
-        button = theme.copy(
-            backgroundColor = Color.TRANSPARENT,
-            backgroundStrokeColor = Color.TRANSPARENT
-        )
+    val INPUT_ONLY_THEME = RadialGamePadTheme(
+        normalColor = Color.TRANSPARENT,
+        pressedColor = Color.TRANSPARENT,
+        simulatedColor = Color.TRANSPARENT,
+        textColor = Color.TRANSPARENT,
+        backgroundColor = Color.TRANSPARENT,
+        lightColor = Color.TRANSPARENT,
+        normalStrokeColor = Color.TRANSPARENT,
+        lightStrokeColor = Color.TRANSPARENT,
+        backgroundStrokeColor = Color.TRANSPARENT
     )
 
     // -------------------------------------------------------------------------------------------
@@ -152,44 +160,23 @@ object TouchGamepadLayout {
     // -------------------------------------------------------------------------------------------
 
     /**
-     * How much bigger than the DRAWN button its press target may be, by default.
-     *
-     * The library pins the OTHER ratio and it cannot be tuned (see [Kind]), so the press target is a
-     * separate, smaller VIEW instead -- see [Pad] -- and this is how much bigger than the button
-     * that view is.
-     *
-     * WHY 1.2 AND NOT SOMETHING ROUNDER. In the reference port the untouched 2.63x meant a 61 dp
-     * button answering a 161 dp circle, and with six menu buttons 0.110 of the width apart the
-     * circles overlapped by 69.5 dp -- more than half of each. 1.5 was tried next: at 91.8 dp
-     * against the 91.6 dp the defaults left between them, the targets touched EDGE TO EDGE, and a
-     * player on a device narrower than the one measured still reported them fighting. 1.2 gives a
-     * 73.4 dp target, an 18.2 dp gap on the same device, and needs a 667 dp wide screen to stay
-     * clear against 835 dp at 1.5.
-     *
-     * The lesson worth carrying, more than the number: a threshold that lands within a dp of the
-     * device you measured on is not solved, it is merely not yet visible.
+     * How much bigger than the DRAWN button its press target may be, by default. 1.2 rather than
+     * 1.5: at 1.5 six menu buttons 0.110 of the width apart touched edge to edge on the device
+     * measured, which is not solved but merely not yet visible. See TOUCH-GAMEPAD-SPEC.md §4.1.
      */
     const val BUTTON_HIT_RATIO = 1.2f
 
     /**
-     * What a control is made of, and how big its view box has to be for a given drawn size.
+     * What a control is made of, and how big its RadialGamePad view box has to be for a given drawn
+     * size ([boxFactor] -- RadialGamePad's own arithmetic, re-verified against 2.0.0):
      *
-     * [boxFactor] is the ratio between the view box and the drawn control, and it is a property of
-     * RadialGamePad's own arithmetic rather than a taste decision:
+     * * a Stick / Cross / multi-button PrimaryButtons dial is measured as `min(w, h) / 2` and drawn
+     *   to fill the box, so the box IS the control (factor 1);
+     * * a single button is a `PrimaryButtonsDial` with only `center`, whose radius works out to
+     *   `box/2 * 0.95 * 0.5 * 0.8 = 0.19 * box` -- a drawn diameter of exactly 0.38 of the box.
+     *   Nothing tunes that ratio, which is why the press target is a separate view ([Pad]).
      *
-     * * a Stick / Cross / PrimaryButtons dial is measured as `min(width, height) / 2` and drawn to
-     *   fill the box, so the box IS the control (factor 1);
-     * * a single button is a `PrimaryButtonsDial` with only a `center` action, and
-     *   `PrimaryButtonsDial.computeButtonRadius` gives that centre button a radius of
-     *   `box/2 * 0.95/2 * 0.8` -- 0.19 of the box, i.e. a drawn diameter of 0.38 of it. So a 60 dp
-     *   button needs a ~158 dp box.
-     *
-     * THE ONE THING TO UNDERSTAND ABOUT THAT 0.38: it cannot be tuned. Scaling the box scales the
-     * button with it, so "shrink the box to tighten the touch target" makes the button smaller and
-     * changes nothing else. That is why the press target is a separate view instead -- see [Pad].
-     *
-     * [hitRatio] here is only the default for a kind; [Control.hitRatio] overrides it per control,
-     * which is how it is actually used.
+     * [hitRatio] is only the default for a kind; [Control.hitRatio] overrides it per control.
      */
     enum class Kind(val boxFactor: Float, val hitRatio: Float) {
         STICK(1f, 1f),
@@ -198,186 +185,199 @@ object TouchGamepadLayout {
         BUTTON(1f / 0.38f, BUTTON_HIT_RATIO)
     }
 
+    fun kindOf(skin: Skin): Kind = when (skin) {
+        is Skin.Single -> Kind.BUTTON
+        is Skin.Face -> Kind.FACE
+        is Skin.Cross -> Kind.CROSS
+        is Skin.Stick -> Kind.STICK
+    }
+
     /**
      * One independently placed and sized control.
      *
      * @param key The persistence key, written into the layout file ([TouchGamepadSettings.save]).
      *   STABLE: renaming one silently resets that control to its default for every player.
      * @param nameRes The control's user-visible name, shown over the editor's size slider.
-     * @param defaultXFraction / [defaultYFraction] The control's CENTRE as a fraction of the screen,
-     *   x from the left edge and y from the top. Fractions rather than dp so a layout tuned on one
-     *   device lands in the same relative place on another.
-     * @param sizeFraction The drawn size of this control as a multiple of the launcher's size
-     *   bracket ([TouchGamepadSettings.Settings.baseSizeDp]). The editor's slider multiplies this
-     *   further, per control.
+     * @param defaultXFraction / [defaultYFraction] The control's CENTRE as a fraction of the screen.
+     * @param sizeFraction The drawn size as a multiple of the launcher's size bracket
+     *   ([TouchGamepadSettings.Settings.baseSizeDp]). The editor's slider multiplies this further.
+     * @param skin What is drawn AND which ids are emitted -- see [inputConfig].
      * @param hitRatio Press target as a multiple of the DRAWN control, overriding [Kind.hitRatio].
-     *   Set it to 1 for a control whose neighbours are close, whose position is at a screen edge, or
-     *   whose mis-press is expensive -- and do NOT feel obliged to keep the two halves of the pad
-     *   symmetric about it. In [XBOX_CONTROLS] the right half is the crowded one and takes 1 while
-     *   the left half keeps the default; that asymmetry is the point, not an oversight.
-     * @param config Builds the RadialGamePad configuration, given the pad's two themes.
+     *   Set it to 1 for a control whose neighbours are close, that sits at an edge, or whose
+     *   mis-press is expensive.
      */
     class Control(
         val key: String,
         val nameRes: Int,
-        val kind: Kind,
         val defaultXFraction: Float,
         val defaultYFraction: Float,
         val sizeFraction: Float,
-        val hitRatio: Float = kind.hitRatio,
-        val config: (Themes) -> RadialGamePadConfig
-    )
-
-    /** A single button: one `PrimaryButtonsDial` with only a centre action. */
-    fun singleButton(id: Int, label: String): (Themes) -> RadialGamePadConfig = { themes ->
-        RadialGamePadConfig(
-            sockets = 12,
-            primaryDial = PrimaryDialConfig.PrimaryButtons(
-                dials = emptyList(),
-                center = ButtonConfig(id = id, label = label),
-                // Must stay false with an empty `dials` list: PrimaryButtonsDial builds its
-                // composite (two-buttons-at-once) anchors from `circleActions[0]`. It only does
-                // that when multiple presses are allowed AND there is no centre action, so a
-                // centre-only dial is safe either way -- this is belt and braces on a
-                // library-internal invariant.
-                allowMultiplePressesSingleFinger = false,
-                theme = themes.button
-            ),
-            secondaryDials = emptyList(),
-            haptic = HapticConfig.PRESS,
-            theme = themes.button
-        )
+        val skin: Skin,
+        val hitRatio: Float = kindOf(skin).hitRatio
+    ) {
+        val kind: Kind get() = kindOf(skin)
     }
+
+    /** A round shoulder/trigger-style button with a text label; [fitAs] sizes a group alike. */
+    fun singleButton(id: Int, label: String, fitAs: String = "LB"): Skin =
+        Skin.Single(id, Body.CIRCLE, Label.Text(label, fitAs))
+
+    /** A pill-shaped menu button (SELECT / START), told apart from the shoulders at a glance. */
+    fun menuButton(id: Int, label: String): Skin =
+        Skin.Single(id, Body.WIDE, Label.Text(label, fitAs = "SELECT"))
 
     /** An analogue stick that can also be clicked in. */
-    fun stick(id: Int, pressId: Int, description: String): (Themes) -> RadialGamePadConfig =
-        { themes ->
-            RadialGamePadConfig(
-                sockets = 12,
-                primaryDial = PrimaryDialConfig.Stick(
-                    id = id, buttonPressId = pressId, contentDescription = description
-                ),
-                secondaryDials = emptyList(),
-                haptic = HapticConfig.PRESS,
-                theme = themes.dial
-            )
-        }
+    fun stick(id: Int, pressId: Int): Skin = Skin.Stick(id, pressId)
 
     /** The four-way cross with diagonals, decomposed into d-pad buttons by [TouchGamepadOverlay]. */
-    fun cross(id: Int): (Themes) -> RadialGamePadConfig = { themes ->
-        RadialGamePadConfig(
+    fun cross(id: Int = ID_DPAD): Skin = Skin.Cross(id)
+
+    /**
+     * ABXY in RadialGamePad dial order -- index i sits i * 90 degrees counter-clockwise from east,
+     * so B right, Y top, X left, A bottom: the Xbox diamond, not the Nintendo one.
+     */
+    val XBOX_FACE_BUTTONS: List<FaceButton> = listOf(
+        FaceButton(SdlButton.B, "B", R.drawable.pl_kenney_icon_button_b),
+        FaceButton(SdlButton.Y, "Y", R.drawable.pl_kenney_icon_button_y),
+        FaceButton(SdlButton.X, "X", R.drawable.pl_kenney_icon_button_x),
+        FaceButton(SdlButton.A, "A", R.drawable.pl_kenney_icon_button_a)
+    )
+
+    /** The ABXY diamond as ONE control, so that one thumb can press two of its buttons at once. */
+    fun faceButtons(buttons: List<FaceButton> = XBOX_FACE_BUTTONS): Skin = Skin.Face(buttons)
+
+    /**
+     * The RadialGamePad configuration for [skin] -- the invisible input half of a control.
+     */
+    fun inputConfig(skin: Skin): RadialGamePadConfig {
+        val dial = when (skin) {
+            // Multi-press must stay false with an empty `dials` list: PrimaryButtonsDial builds its
+            // composite anchors from `circleActions[0]`. A centre-only dial is safe either way --
+            // this is belt and braces on a library-internal invariant.
+            is Skin.Single -> PrimaryDialConfig.PrimaryButtons(
+                dials = emptyList(),
+                center = ButtonConfig(id = skin.id, label = labelOf(skin)),
+                allowMultiplePressesSingleFinger = false,
+                theme = INPUT_ONLY_THEME
+            )
+            is Skin.Face -> PrimaryDialConfig.PrimaryButtons(
+                dials = skin.buttons.map { ButtonConfig(id = it.id, label = it.label) },
+                theme = INPUT_ONLY_THEME
+            )
+            is Skin.Cross -> PrimaryDialConfig.Cross(
+                CrossConfig(id = skin.id, shape = CrossConfig.Shape.STANDARD, theme = INPUT_ONLY_THEME)
+            )
+            is Skin.Stick -> PrimaryDialConfig.Stick(
+                id = skin.id, buttonPressId = skin.pressId,
+                contentDescription = if (skin.id == ID_RIGHT_STICK) "Right stick" else "Left stick"
+            )
+        }
+        return RadialGamePadConfig(
             sockets = 12,
-            primaryDial = PrimaryDialConfig.Cross(
-                CrossConfig(id = id, shape = CrossConfig.Shape.STANDARD)
-            ),
+            primaryDial = dial,
             secondaryDials = emptyList(),
             haptic = HapticConfig.PRESS,
-            theme = themes.dial
+            theme = INPUT_ONLY_THEME
         )
     }
 
-    /** The ABXY diamond as ONE control, so that one thumb can press two of its buttons at once. */
-    fun faceButtons(): (Themes) -> RadialGamePadConfig = { themes ->
-        RadialGamePadConfig(
-            sockets = 12,
-            // Counterclockwise from 3 o'clock, so this reads B(right), Y(top), X(left), A(bottom)
-            // -- the Xbox diamond, not the Nintendo one.
-            primaryDial = PrimaryDialConfig.PrimaryButtons(
-                dials = listOf(
-                    ButtonConfig(id = SdlButton.B, label = "B"),
-                    ButtonConfig(id = SdlButton.Y, label = "Y"),
-                    ButtonConfig(id = SdlButton.X, label = "X"),
-                    ButtonConfig(id = SdlButton.A, label = "A")
-                )
-            ),
-            secondaryDials = emptyList(),
-            haptic = HapticConfig.PRESS,
-            theme = themes.dial
-        )
+    private fun labelOf(skin: Skin.Single): String = when (val l = skin.label) {
+        is Label.Text -> l.text
+        is Label.Icon -> ""
     }
 
     /**
-     * The default ten-control Xbox pad, in the order they are added to the container -- WHICH IS
-     * ALSO THEIR Z-ORDER, and that order is the single least obvious thing in this file.
+     * The default ten-control Xbox pad for WIDE screens (phones, 16:9 handhelds), in the order they
+     * are added to the container -- WHICH IS ALSO THEIR Z-ORDER.
      *
      * THE RULE IS "THE MORE DEAD SPACE A CONTROL'S BOX HAS, THE LOWER IT GOES", not "the more
-     * expensive a mis-press is, the lower it goes". The reference port ordered it the second way for
-     * four revisions and was wrong all four times.
+     * expensive a mis-press is, the lower it goes". A button's view box is 2.63x the button, so 86%
+     * of it draws nothing; a dial's box IS the dial. Since the split in [Pad] the dead ring receives
+     * no touches, but the order is cheap insurance if that is ever regressed. Cost-of-mis-press is
+     * the tie-breaker WITHIN a group, which is why BACK and START are first of all ten.
      *
-     * Why: a button's view box is 2.63x the button, so 86% of it draws nothing. In any design where
-     * that box still receives touches -- which is every design short of the split in [Pad] -- a
-     * button sitting ON TOP of a dial does not steal the dial's presses, it DELETES them, because
-     * `RadialGamePad.onTouchEvent` returns true unconditionally and there is nothing to hand the
-     * touch on to. Measured on an 800x360 dp phone with the shoulder buttons above the dials: RB's
-     * box covered 42.2 dp of the ABXY diamond and LB's covered 42.2 dp of the left stick, all of it
-     * dead. The player reported it as "Y is very hard to press" -- not as RB firing, because RB
-     * never fired. That is the signature to recognise.
-     *
-     * A dial has boxFactor 1: its box IS its control, no dead ring, so it shadows nothing and
-     * belongs on top. Cost-of-mis-press is the tie-breaker WITHIN a group, which is why BACK and
-     * START are first of the six buttons and not merely first of the ten.
-     *
-     * The default positions put the sticks and the diamond low on each side, the D-pad below and
-     * inboard of the left stick, the right stick below and inboard of the diamond (a real Xbox pad's
-     * relationship), and the two shoulder/trigger/menu triples arcing above each side, mirrored
-     * through the screen's vertical axis.
+     * Sticks and the diamond sit low on each side, the D-pad below and inboard of the left stick,
+     * the right stick below and inboard of the diamond (a real Xbox pad's relationship), and the
+     * shoulder/trigger/menu triples arc above each side. Tuned on an 800 x 360 dp phone; on a
+     * near-square panel, where width is the scarce axis, use [STACKED_CONTROLS] instead.
      */
     val XBOX_CONTROLS: List<Control> = listOf(
-        // BACK and START first of all ten, so they sit under every other control -- the sticks, the
-        // d-pad and the ABXY diamond included, not just the shoulders. Where two targets overlap the
-        // topmost one takes the touch, and these two must always be the ones that lose it.
-        //
-        // They also take hitRatio = 1: the press target is the drawn button and nothing around it.
-        // At 1.5 START's target still reached into the ABXY diamond on a phone. These are deliberate
-        // presses rather than reflexes, so demanding an accurate one costs nothing a player notices
-        // in a fight -- and opening the menu by accident can cost a run.
-        Control(
-            "back", R.string.pl_pad_back, Kind.BUTTON, 0.075f, 0.440f, 0.36f, hitRatio = 1f,
-            config = singleButton(SdlButton.BACK, "BACK")
-        ),
-        Control(
-            "start", R.string.pl_pad_start, Kind.BUTTON, 0.925f, 0.440f, 0.36f, hitRatio = 1f,
-            config = singleButton(SdlButton.START, "START")
-        ),
-        // The shoulders and triggers, UNDER the dials -- see the header.
-        //
-        // The two sides do NOT get the same target, and that is deliberate. The right half of the
-        // screen is the crowded one -- RT, RB and START share it with the ABXY diamond below them --
-        // so RT and RB join BACK and START at hitRatio 1 and answer their own button only. LB and LT
-        // keep the wider default: nothing sits near them but each other, so there is room to be
-        // forgiving and no reason not to be.
-        Control(
-            "lb", R.string.pl_pad_lb, Kind.BUTTON, 0.185f, 0.400f, 0.36f,
-            config = singleButton(SdlButton.LEFT_SHOULDER, "LB")
-        ),
-        Control(
-            "lt", R.string.pl_pad_lt, Kind.BUTTON, 0.295f, 0.440f, 0.36f,
-            config = singleButton(ID_LT, "LT")
-        ),
-        Control(
-            "rt", R.string.pl_pad_rt, Kind.BUTTON, 0.705f, 0.440f, 0.36f, hitRatio = 1f,
-            config = singleButton(ID_RT, "RT")
-        ),
-        Control(
-            "rb", R.string.pl_pad_rb, Kind.BUTTON, 0.815f, 0.400f, 0.36f, hitRatio = 1f,
-            config = singleButton(SdlButton.RIGHT_SHOULDER, "RB")
-        ),
-        Control(
-            "lstick", R.string.pl_pad_left_stick, Kind.STICK, 0.130f, 0.720f, 1.00f,
-            config = stick(ID_LEFT_STICK, SdlButton.LEFT_STICK, "Left stick")
-        ),
-        Control(
-            "face", R.string.pl_pad_face, Kind.FACE, 0.870f, 0.720f, 1.00f,
-            config = faceButtons()
-        ),
-        Control(
-            "dpad", R.string.pl_pad_dpad, Kind.CROSS, 0.300f, 0.860f, 0.95f,
-            config = cross(ID_DPAD)
-        ),
-        Control(
-            "rstick", R.string.pl_pad_right_stick, Kind.STICK, 0.700f, 0.860f, 0.95f,
-            config = stick(ID_RIGHT_STICK, SdlButton.RIGHT_STICK, "Right stick")
-        )
+        // BACK/START: deliberate presses, so the press target is the drawn pill and nothing more.
+        Control("back", R.string.pl_pad_back, .075f, .440f, .36f,
+            menuButton(SdlButton.BACK, "SELECT"), hitRatio = 1f),
+        Control("start", R.string.pl_pad_start, .925f, .440f, .36f,
+            menuButton(SdlButton.START, "START"), hitRatio = 1f),
+        // The right half is the crowded one (RT, RB and START share it with ABXY), so RT and RB
+        // answer their own button only; LB and LT keep the wider default.
+        Control("lb", R.string.pl_pad_lb, .185f, .400f, .36f,
+            singleButton(SdlButton.LEFT_SHOULDER, "LB")),
+        Control("lt", R.string.pl_pad_lt, .295f, .440f, .36f, singleButton(ID_LT, "LT")),
+        Control("rt", R.string.pl_pad_rt, .705f, .440f, .36f, singleButton(ID_RT, "RT"),
+            hitRatio = 1f),
+        Control("rb", R.string.pl_pad_rb, .815f, .400f, .36f,
+            singleButton(SdlButton.RIGHT_SHOULDER, "RB"), hitRatio = 1f),
+        // Dials on top: box == control, no dead ring, so they shadow nothing.
+        Control("lstick", R.string.pl_pad_left_stick, .130f, .720f, 1.00f,
+            stick(ID_LEFT_STICK, SdlButton.LEFT_STICK)),
+        Control("face", R.string.pl_pad_face, .870f, .720f, 1.00f, faceButtons()),
+        Control("dpad", R.string.pl_pad_dpad, .300f, .860f, .95f, cross(ID_DPAD)),
+        Control("rstick", R.string.pl_pad_right_stick, .700f, .860f, .95f,
+            stick(ID_RIGHT_STICK, SdlButton.RIGHT_STICK))
+    )
+
+    /**
+     * The three horizontal bands [STACKED_CONTROLS] is built from, as fractions of screen HEIGHT.
+     *
+     * On a near-square panel (the reference port's RP Mini: 1240x1080 px, 537.7 x 468.3 dp) the
+     * four dials alone want `170 + 161.5` dp of width per side -- 663 dp against 537.7 -- so no
+     * horizontal arrangement can separate the left stick from the d-pad. A SQUARE press target only
+     * needs clearance on ONE axis, so these defaults stack instead: one big dial per side per band.
+     *
+     * Budget at a 190 dp size: `0.36x190 + 0.95x190 + 1.00x190 = 438.9` dp of control against
+     * 468.3 dp of height -- 29.4 dp of slack for three gaps and two margins. That is what fixes the
+     * values, and why a host using this list should cap its size option at about
+     * `height_dp / 2.46` (190 dp on a 1080 px-tall ~370 dpi panel); 200 closes the stick/d-pad gap
+     * to 0.2 dp, which is not a clearance.
+     */
+    const val ROW_BUTTONS = .0816f
+    const val ROW_REACH = .3644f
+    const val ROW_THUMBS = .7813f
+
+    /**
+     * The left stick's row: the reach band lowered by 0.0072 H. The left column stacks a 1.00 size
+     * (stick) above a 0.95 (d-pad), so a stick at [ROW_REACH] would clear LB/LT by 3.2 dp and the
+     * d-pad by 10.0 at the 190 dp ceiling; centring it in that gap gives 6.6 dp on both sides.
+     */
+    const val ROW_REACH_LSTICK = .3716f
+
+    /**
+     * The same ten controls for NEAR-SQUARE panels (4:3 .. 5:4 handhelds), stacked in three bands
+     * (see [ROW_BUTTONS]). The two controls a thumb rests on -- the d-pad and ABXY -- take the bottom
+     * band, mirrored left/right; the two sticks sit directly above them; the six shoulder/menu
+     * buttons take the top band, 0.138 of the width apart. Every button answers its own face only
+     * (hitRatio 1): at 1.2 neighbouring targets overlap by 14.3 dp on a 537.7 dp-wide panel.
+     *
+     * Same keys, ids and z-order rule as [XBOX_CONTROLS], so a saved layout carries across.
+     */
+    val STACKED_CONTROLS: List<Control> = listOf(
+        Control("back", R.string.pl_pad_back, .070f, ROW_BUTTONS, .36f,
+            menuButton(SdlButton.BACK, "SELECT"), hitRatio = 1f),
+        Control("start", R.string.pl_pad_start, .930f, ROW_BUTTONS, .36f,
+            menuButton(SdlButton.START, "START"), hitRatio = 1f),
+        Control("lb", R.string.pl_pad_lb, .208f, ROW_BUTTONS, .36f,
+            singleButton(SdlButton.LEFT_SHOULDER, "LB"), hitRatio = 1f),
+        Control("lt", R.string.pl_pad_lt, .346f, ROW_BUTTONS, .36f,
+            singleButton(ID_LT, "LT"), hitRatio = 1f),
+        Control("rt", R.string.pl_pad_rt, .654f, ROW_BUTTONS, .36f,
+            singleButton(ID_RT, "RT"), hitRatio = 1f),
+        Control("rb", R.string.pl_pad_rb, .792f, ROW_BUTTONS, .36f,
+            singleButton(SdlButton.RIGHT_SHOULDER, "RB"), hitRatio = 1f),
+        Control("lstick", R.string.pl_pad_left_stick, .175f, ROW_REACH_LSTICK, 1f,
+            stick(ID_LEFT_STICK, SdlButton.LEFT_STICK)),
+        Control("face", R.string.pl_pad_face, .815f, ROW_THUMBS, 1f, faceButtons()),
+        Control("dpad", R.string.pl_pad_dpad, .185f, ROW_THUMBS, .95f, cross(ID_DPAD)),
+        Control("rstick", R.string.pl_pad_right_stick, .825f, ROW_REACH, .95f,
+            stick(ID_RIGHT_STICK, SdlButton.RIGHT_STICK))
     )
 
     /** The controls this host actually uses. */
@@ -385,46 +385,122 @@ object TouchGamepadLayout {
 
     fun controlFor(key: String): Control? = controls.firstOrNull { it.key == key }
 
+    /** The controls the GAME builds: the ones whose placement says visible. */
+    fun visibleControls(placements: Map<String, TouchGamepadSettings.Placement>): List<Control> =
+        controls.filter { (placements[it.key] ?: TouchGamepadSettings.defaultPlacement(it)).visible }
+
     // -------------------------------------------------------------------------------------------
     // Building and placing
     // -------------------------------------------------------------------------------------------
 
     /**
-     * One control: the view that DRAWS it, and the view that RECEIVES its touches.
+     * One control: the view that receives its input ([view], invisible), the view that draws it
+     * ([sprite]) and the view that bounds its touches ([hit]).
      *
-     * They are two different views because they must be two different sizes. The library draws a
-     * button at 0.38 of its view, so drawing a 61 dp button needs a 161 dp RadialGamePad -- and a
-     * 161 dp view that answers touches over its whole area is what covered the ABXY diamond in four
-     * earlier attempts at this.
-     *
-     * So [hit] is a plain FrameLayout sized to the PRESS TARGET, [view] is the RadialGamePad sized
-     * to what the library needs, and [view] is centred inside [hit] with NEGATIVE margins so it
-     * hangs out on all four sides and draws at full size. `clipChildren = false` is what lets it,
-     * and it must be false on every ViewGroup from [hit] up to wherever drawing is allowed.
+     * The library draws a single button at 0.38 of its view, so a 61 dp button needs a 161 dp
+     * RadialGamePad -- and `RadialGamePad.onTouchEvent` returns true unconditionally, so a 161 dp
+     * view that answered touches would DELETE a neighbour's presses. So [hit] is sized to the PRESS
+     * TARGET and [view] is centred inside it with NEGATIVE margins, hanging out on all four sides.
+     * `clipChildren = false` on [hit] and on the container is what allows that.
      *
      * Android hit-tests children by their bounds, so a touch outside [hit] is never offered to this
-     * control at all -- it falls through to whatever is beneath, exactly as it should. Nothing is
-     * swallowed, a MOVE that leaves the control still delivers its release (Android keeps the target
-     * until UP), and multi-touch is the framework's own per-pointer dispatch rather than anything
-     * written here.
-     *
-     * The one cost: the press target is the SQUARE bounds of [hit], not a circle inscribed in it, so
-     * the four corners are ~27% more area than a circle would give. That is the price of swallowing
-     * nothing, and it is the right way round.
+     * control -- it falls through to whatever is beneath. The cost is that the target is a square.
      */
     class Pad(
         val control: Control,
         val view: RadialGamePad,
-        val hit: FrameLayout
+        val hit: HitBox,
+        val sprite: TouchGamepadSprite
     )
 
     /**
-     * The container and the pads inside it.
+     * The press target of one control: a bare FrameLayout, plus two behaviours.
      *
-     * The placement is re-run from [container]'s own layout listener as well as from [apply],
-     * because the fractions mean nothing until the container has a width and a height -- and on a
-     * device with a hinge, a resizable window or a rotation, the size it has is not the one the
-     * display metrics reported.
+     * [interceptTouches] is for the editor, and it is not optional there: touch dispatch offers a
+     * ViewGroup's children the event BEFORE the group's own OnTouchListener, and
+     * `RadialGamePad.onTouchEvent` returns true for everything -- so a drag listener on an ordinary
+     * wrapper would never be called. Intercepting lets the editor grab the control instead.
+     *
+     * The d-pad's SQUARE target ([clampToCircle]) is the other.
+     */
+    class HitBox(context: Context) : FrameLayout(context) {
+        var interceptTouches = false
+
+        /** Told when a finger lands on / leaves this target in game (the stick nub's held look). */
+        internal var sprite: TouchGamepadSprite? = null
+
+        /**
+         * Set for the d-pad only: the RadialGamePad whose CIRCULAR touch bound should answer the
+         * whole SQUARE target.
+         */
+        internal var squareToCircle: View? = null
+
+        private var props = emptyArray<MotionEvent.PointerProperties>()
+        private var coords = emptyArray<MotionEvent.PointerCoords>()
+
+        init {
+            clipChildren = false
+        }
+
+        override fun onInterceptTouchEvent(ev: MotionEvent): Boolean = interceptTouches
+
+        override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+            if (!interceptTouches) when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> sprite?.onTouchActive(true)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> sprite?.onTouchActive(false)
+            }
+            val target = squareToCircle
+            if (interceptTouches || target == null) return super.dispatchTouchEvent(ev)
+            val clamped = clampToCircle(ev, target)
+            return try {
+                super.dispatchTouchEvent(clamped)
+            } finally {
+                clamped.recycle()
+            }
+        }
+
+        /**
+         * The d-pad's square press target, answered by RadialGamePad's round Cross.
+         *
+         * The Cross only claims a pointer inside its circular touch bound (centre of the view,
+         * radius = half the dial), so the corners of the drawn d-pad -- inside this target -- would
+         * press nothing. Every pointer farther out than [CROSS_SQUARE_CLAMP] of that radius is pulled
+         * straight back along its own angle onto that circle. The ANGLE is all the Cross reads
+         * (sector -> 4/8-way, so a top-right corner is UP+RIGHT); inside the circle nothing moves,
+         * so the centre dead zone and every press that worked before are unchanged. Only this view's
+         * own pointers arrive here (split dispatch), so multi-touch elsewhere is untouched.
+         */
+        private fun clampToCircle(ev: MotionEvent, target: View): MotionEvent {
+            val n = ev.pointerCount
+            if (props.size < n) {
+                props = Array(n) { MotionEvent.PointerProperties() }
+                coords = Array(n) { MotionEvent.PointerCoords() }
+            }
+            val cx = target.left + target.width / 2f
+            val cy = target.top + target.height / 2f
+            val r = minOf(target.width, target.height) / 2f * CROSS_SQUARE_CLAMP
+            for (i in 0 until n) {
+                ev.getPointerProperties(i, props[i])
+                ev.getPointerCoords(i, coords[i])
+                val dx = coords[i].x - cx
+                val dy = coords[i].y - cy
+                val d = sqrt(dx * dx + dy * dy)
+                if (d > r) {
+                    coords[i].x = cx + dx * r / d
+                    coords[i].y = cy + dy * r / d
+                }
+            }
+            return MotionEvent.obtain(
+                ev.downTime, ev.eventTime, ev.action, n, props, coords, ev.metaState,
+                ev.buttonState, ev.xPrecision, ev.yPrecision, ev.deviceId, ev.edgeFlags,
+                ev.source, ev.flags
+            )
+        }
+    }
+
+    /**
+     * The container and the pads inside it. The placement is re-run from [container]'s own layout
+     * listener as well as from [apply], because fractions mean nothing until it has a size.
      */
     class Pads(val container: FrameLayout, val pads: List<Pad>) {
         internal var opacity: Float = 1f
@@ -434,33 +510,32 @@ object TouchGamepadLayout {
         fun pad(key: String): Pad? = pads.firstOrNull { it.control.key == key }
     }
 
-    fun build(context: Context): Pads {
-        val config = TouchGamepadHost.config
+    /**
+     * Build [controls] -- every control for the editor, [visibleControls] for the game. A control
+     * left out here has no view at all: it cannot draw, cannot be hit, cannot steal a neighbour's
+     * press and never emits an event.
+     */
+    fun build(context: Context, controls: List<Control> = this.controls): Pads {
+        val theme = TouchGamepadHost.config.theme
         val container = FrameLayout(context)
-        // The pads draw outside their own bounds -- see Pad -- so nothing on the way down may clip
-        // them.
+        // The pads draw outside their own bounds -- see Pad -- so nothing on the way down may clip.
         container.clipChildren = false
-        val pads = config.controls.map { control ->
-            // Zero default margins: the drawn dial is then exactly the view box, which is the whole
-            // basis of Kind.boxFactor.
+        val pads = controls.map { control ->
+            // Zero default margins: the dial is then exactly the view box (Kind.boxFactor).
             val view = RadialGamePad(
-                gamePadConfig = control.config(config.themes),
+                gamePadConfig = inputConfig(control.skin),
                 defaultMarginsInDp = 0f,
                 context = context
             )
-            val hit = FrameLayout(context)
-            hit.clipChildren = false
-            hit.addView(
-                view, FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-            container.addView(
-                hit, FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-            Pad(control, view, hit)
+            val sprite = TouchGamepadSprite(context, control.skin, theme)
+            val hit = HitBox(context).also { it.sprite = sprite }
+            if (control.kind == Kind.CROSS) hit.squareToCircle = view
+            // Sprite first, input on top: dispatch offers the touch to the topmost child. The sprite
+            // is never clickable, so it could not take it anyway.
+            hit.addView(sprite, wrapContent())
+            hit.addView(view, wrapContent())
+            container.addView(hit, wrapContent())
+            Pad(control, view, hit, sprite)
         }
         val result = Pads(container, pads)
         container.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or_, ob ->
@@ -468,6 +543,10 @@ object TouchGamepadLayout {
         }
         return result
     }
+
+    private fun wrapContent() = FrameLayout.LayoutParams(
+        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+    )
 
     /** Opacity, the launcher's size bracket and the editor's per-control placements onto live pads. */
     fun apply(
@@ -486,13 +565,10 @@ object TouchGamepadLayout {
      * The one piece of geometry arithmetic in the whole feature.
      *
      * Each control's drawn size is `baseSizeDp * sizeFraction * scale`; its RadialGamePad view is
-     * that times `kind.boxFactor`; its press target is that times `hitRatio`; and its centre is
-     * `(xFraction, yFraction)` of the container, clamped so the PRESS TARGET stays inside the
-     * container. Nothing here knows about aspect ratios, reserved bands or screen halves.
-     *
-     * Clamping the press target rather than the view box is not a detail. Clamp the box and a
-     * control asked for 0.925 of the width is shoved back inside by half the dead ring -- 18 dp in
-     * the reference port -- and lands deeper into its neighbour than the layout ever said.
+     * that times `kind.boxFactor`; its sprite is the drawn size; its press target is that times
+     * `hitRatio`; and its centre is `(xFraction, yFraction)` of the container, clamped so the PRESS
+     * TARGET stays inside the container. Clamping the 2.63x view box instead would shove an edge
+     * button inwards by half its dead ring.
      */
     private fun place(context: Context, pads: Pads) {
         val w = pads.container.width.takeIf { it > 0 }
@@ -504,14 +580,29 @@ object TouchGamepadLayout {
             val p = pads.placements[pad.control.key]
                 ?: TouchGamepadSettings.defaultPlacement(pad.control)
             val drawnDp = pads.baseSizeDp * pad.control.sizeFraction * p.scale
-            val boxPx = dpf(context, drawnDp * pad.control.kind.boxFactor)
-                .roundToInt().coerceAtLeast(1)
-            // The press target: the drawn control, times whatever forgiveness this control is
-            // allowed. For a dial the two are the same number.
+            val boxDp = drawnDp * pad.control.kind.boxFactor
+            val boxPx = dpf(context, boxDp).roundToInt().coerceAtLeast(1)
             val hitPx = dpf(context, drawnDp * pad.control.hitRatio).roundToInt().coerceAtLeast(1)
+            val drawnPx = dpf(context, drawnDp).roundToInt().coerceAtLeast(1)
 
-            pad.view.alpha = pads.opacity
-            pad.view.primaryDialMaxSizeDp = drawnDp * pad.control.kind.boxFactor
+            // The input layer paints nothing (INPUT_ONLY_THEME); alpha 0 also skips its draw pass.
+            // The opacity option applies to the sprite, which is what the player sees.
+            pad.view.alpha = 0f
+            pad.sprite.alpha =
+                if (p.visible) pads.opacity else pads.opacity * HIDDEN_EDITOR_ALPHA
+
+            // The sprite: exactly the DRAWN control, centred on the press target.
+            val slp = pad.sprite.layoutParams as FrameLayout.LayoutParams
+            slp.width = drawnPx
+            slp.height = drawnPx
+            slp.leftMargin = (hitPx - drawnPx) / 2
+            slp.topMargin = (hitPx - drawnPx) / 2
+            pad.sprite.layoutParams = slp
+
+            // A cap, not a size: with zero margins `usable` IS boxPx, so this pins the dial to the
+            // box. Setting it LOWER would shrink the dial without shrinking the view and silently
+            // invalidate the 0.38 ratio.
+            pad.view.primaryDialMaxSizeDp = boxDp
 
             // The RadialGamePad, centred in the wrapper and hanging out of it.
             val vlp = pad.view.layoutParams as FrameLayout.LayoutParams
@@ -521,9 +612,7 @@ object TouchGamepadLayout {
             vlp.topMargin = (hitPx - boxPx) / 2
             pad.view.layoutParams = vlp
 
-            // The wrapper is what gets positioned and what the edge rule applies to. It is the press
-            // target, so keeping it on screen keeps the part of the control a finger can use on
-            // screen -- and for every control whose hitRatio is 1 that is exactly the drawn control.
+            // The wrapper is what gets positioned, and what the edge rule applies to.
             val hlp = pad.hit.layoutParams as FrameLayout.LayoutParams
             hlp.width = hitPx
             hlp.height = hitPx
@@ -537,9 +626,8 @@ object TouchGamepadLayout {
 
     /**
      * The centre fraction a press target of [hitPx] may be dragged to without leaving the container,
-     * as (min, max). The editor clamps with this so a control cannot be pushed off the edge and
-     * lost -- and it must be the same quantity [place] clamps, or the editor would place controls
-     * that the game then moves.
+     * as (min, max) -- the same quantity [place] clamps, or the editor would place controls the game
+     * then moves.
      */
     fun centreRange(hitPx: Int, extentPx: Int): ClosedFloatingPointRange<Float> {
         if (extentPx <= 0) return 0f..1f

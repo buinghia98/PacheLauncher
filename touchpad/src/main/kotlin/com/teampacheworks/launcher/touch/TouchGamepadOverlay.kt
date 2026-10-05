@@ -71,7 +71,11 @@ object TouchGamepadOverlay {
             return
         }
 
-        val built = TouchGamepadLayout.build(activity)
+        // Hidden controls (the editor's "Visible" switch) are never built: no view, no touch, no
+        // events -- a hidden stick's axes simply stay at their centred start.
+        val built = TouchGamepadLayout.build(
+            activity, TouchGamepadLayout.visibleControls(resolved.placements)
+        )
         pads = built
         root = built.container
         this.sink = sink
@@ -95,14 +99,23 @@ object TouchGamepadOverlay {
         val sc = CoroutineScope(Dispatchers.Main.immediate)
         scope = sc
         for (pad in built.pads) {
-            sc.launch { pad.view.events().collect { dispatch(it) } }
+            // The sprite mirrors each event first, so what is shown pressed is what the sink is told.
+            sc.launch {
+                pad.view.events().collect {
+                    if (visible) pad.sprite.onEvent(it)
+                    dispatch(it)
+                }
+            }
         }
 
-        Log.i(TAG, "overlay attached (${built.pads.size} controls)")
+        Log.i(TAG, "Kenney-skinned overlay attached (${built.pads.size} controls)")
     }
 
     @JvmStatic
     fun detach() {
+        // Released while the sink is still known: RadialGamePad emits no release for a control that
+        // is removed under a finger, and the host typically tears its joystick down right after.
+        releaseControls()
         scope?.cancel()
         scope = null
         (root?.parent as? ViewGroup)?.removeView(root)
@@ -186,11 +199,14 @@ object TouchGamepadOverlay {
         if (v.isNaN()) 0 else (v.coerceIn(-1f, 1f) * AXIS_MAX).roundToInt()
 
     /**
-     * Release everything. Called when the overlay is hidden, so a finger that was holding a
-     * direction when the view went away does not leave the game walking into a wall forever --
-     * RadialGamePad emits no release event for a control that is removed under it.
+     * Release everything, on the sink AND on screen. Called when the overlay is hidden or detached;
+     * a host also calls it from its game Activity's `onPause`, so a finger that was holding a
+     * direction when the window lost focus does not leave the game walking into a wall forever --
+     * RadialGamePad emits no release event for a touch the window never saw end.
      */
-    private fun releaseAll() {
+    @JvmStatic
+    fun releaseControls() {
+        pads?.pads?.forEach { it.sprite.reset() }
         val out = sink ?: return
         for (b in 0..14) out.button(b, false)
         for (a in 0..5) out.axis(a, 0)
@@ -207,7 +223,7 @@ object TouchGamepadOverlay {
     fun setVisible(show: Boolean) {
         visible = show
         pads?.container?.visibility = if (show) View.VISIBLE else View.GONE
-        if (!show) releaseAll()
+        if (!show) releaseControls()
         Log.i(TAG, "overlay ${if (show) "shown" else "hidden"}")
     }
 }

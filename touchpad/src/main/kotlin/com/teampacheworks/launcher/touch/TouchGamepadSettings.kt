@@ -90,7 +90,7 @@ object TouchGamepadSettings {
     enum class Mode { OFF, ON, AUTO }
 
     /**
-     * Where one control sits and how big it is.
+     * Where one control sits, how big it is, and whether the GAME shows it at all.
      *
      * @param xFraction / @param yFraction The control's CENTRE, as a fraction of the screen's width
      *   and height. Fractions, not dp, and of the WHOLE screen, not of a reserved band: the same
@@ -100,18 +100,22 @@ object TouchGamepadSettings {
      * @param scale Editor-side multiplier ON TOP of the launcher's size bracket, per control. Kept
      *   separate rather than folded into one number so that changing the launcher's size row still
      *   moves a pad the player has hand-tuned, instead of being silently overridden by it.
+     * @param visible The editor's "Visible" switch. False: the game does not create this control
+     *   at all (no view, no touch target, no events); the editor still shows it, de-emphasised
+     *   ([TouchGamepadLayout.HIDDEN_EDITOR_ALPHA]), so it can be found and switched back on.
      */
     data class Placement(
         val xFraction: Float,
         val yFraction: Float,
-        val scale: Float = 1.0f
+        val scale: Float = 1.0f,
+        val visible: Boolean = true
     )
 
-    const val SCALE_MIN = 0.5f
-    const val SCALE_MAX = 1.6f
-
-    fun defaultPlacement(control: TouchGamepadLayout.Control) =
-        Placement(control.defaultXFraction, control.defaultYFraction, 1.0f)
+    /** The control's default: its declared centre, scale 1, visible unless the host hides it. */
+    fun defaultPlacement(control: TouchGamepadLayout.Control) = Placement(
+        control.defaultXFraction, control.defaultYFraction, 1.0f,
+        visible = control.key !in TouchGamepadHost.config.hiddenByDefault
+    )
 
     fun defaultPlacements(): Map<String, Placement> =
         TouchGamepadLayout.controls.associate { it.key to defaultPlacement(it) }
@@ -143,10 +147,9 @@ object TouchGamepadSettings {
             intent?.getStringExtra(LauncherContract.extraNameFor(OPTION_OPACITY)),
             config.defaultOpacity
         )
-        val sizeDp = intent
-            ?.getStringExtra(LauncherContract.extraNameFor(OPTION_SIZE))
-            ?.toFloatOrNull()
-            ?: config.defaultSizeDp
+        val sizeDp = sizeOf(
+            intent?.getStringExtra(LauncherContract.extraNameFor(OPTION_SIZE)), config
+        )
 
         val enabled = when (mode) {
             Mode.OFF -> false
@@ -189,7 +192,7 @@ object TouchGamepadSettings {
             enabled = true,
             mode = modeOf(opt(OPTION_MODE)),
             opacity = opacityOf(opt(OPTION_OPACITY), config.defaultOpacity),
-            baseSizeDp = opt(OPTION_SIZE)?.toFloatOrNull() ?: config.defaultSizeDp,
+            baseSizeDp = sizeOf(opt(OPTION_SIZE), config),
             placements = readLayout(context)
         )
     }
@@ -198,6 +201,13 @@ object TouchGamepadSettings {
         MODE_OFF -> Mode.OFF
         MODE_ON -> Mode.ON
         else -> Mode.AUTO
+    }
+
+    /** The option carries dp; clamped into [TouchGamepadConfig.sizeRangeDp] when the host set one. */
+    private fun sizeOf(value: String?, config: TouchGamepadConfig): Float {
+        val dp = value?.toFloatOrNull() ?: config.defaultSizeDp
+        val range = config.sizeRangeDp ?: return dp
+        return dp.coerceIn(range.start, range.endInclusive)
     }
 
     /** The option carries whole percent, because a Spinner's labels read better that way. */
@@ -229,12 +239,17 @@ object TouchGamepadSettings {
             }.onFailure { Log.w(TAG, "layout file unreadable (${it.message}) -- using defaults") }
         }
 
+        val scales = TouchGamepadHost.config.scaleRange
         return TouchGamepadLayout.controls.associate { control ->
             val d = defaultPlacement(control)
             control.key to Placement(
                 xFraction = (values["${control.key}_x"] ?: d.xFraction).coerceIn(0f, 1f),
                 yFraction = (values["${control.key}_y"] ?: d.yFraction).coerceIn(0f, 1f),
-                scale = (values["${control.key}_scale"] ?: d.scale).coerceIn(SCALE_MIN, SCALE_MAX)
+                scale = (values["${control.key}_scale"] ?: d.scale)
+                    .coerceIn(scales.start, scales.endInclusive),
+                // 0 = hidden, anything else = shown; absent (a file from before the switch existed)
+                // = the host's default for that control.
+                visible = values["${control.key}_visible"]?.let { it != 0f } ?: d.visible
             )
         }
     }
@@ -252,12 +267,14 @@ object TouchGamepadSettings {
         val text = buildString {
             append("# On-screen gamepad layout. Written by the launcher's editor, read by the\n")
             append("# game process at launch. x/y are the control's centre as a fraction of the\n")
-            append("# screen; scale multiplies the launcher's size bracket.\n")
+            append("# screen; scale multiplies the launcher's size bracket; visible is 1 shown /\n")
+            append("# 0 hidden in game. A missing key takes the control's default.\n")
             for (control in TouchGamepadLayout.controls) {
                 val p = placements[control.key] ?: defaultPlacement(control)
                 append("${control.key}_x=${p.xFraction}\n")
                 append("${control.key}_y=${p.yFraction}\n")
                 append("${control.key}_scale=${p.scale}\n")
+                append("${control.key}_visible=${if (p.visible) 1 else 0}\n")
             }
         }
         return runCatching {

@@ -18,6 +18,8 @@
     <string name="pl_pad_editor_reset_size">Reset size</string>
     <string name="pl_pad_editor_reset">Reset</string>
     <string name="pl_pad_editor_reset_all">Reset all</string>
+    <!-- The switch deciding whether the game shows the selected control at all. -->
+    <string name="pl_pad_editor_visible">Visible</string>
     <string name="pl_pad_editor_done">Done</string>
 
     <!-- Control names, shown over the editor's size slider. -->

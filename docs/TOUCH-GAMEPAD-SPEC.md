@@ -249,6 +249,13 @@ Both change how the pad feels in the hand, so `k` needs a human decision.
 Alongside it: the default positions deserve another look — spread horizontally **and stagger
 vertically**, since a diagonal buys √2 of distance without spending any width.
 
+**Partly addressed since** (the reference port's 2026-10 near-square work, now in the module):
+`TouchGamepadLayout.STACKED_CONTROLS` stacks the pad in three height bands for panels where width is
+the scarce axis — a square press target only needs clearance on ONE axis — and
+`TouchGamepadConfig.sizeRangeDp` / `scaleRange` let a host turn the derived ceiling (190 dp, scale
+≤ 1 on a 537.7 x 468.3 dp panel) into a hard clamp, so the 250 dp x 1.6 case above cannot be
+selected. The general fix (size bound by real width, or size in fractions) is still open.
+
 ---
 
 ## 8. Checklist when porting this to another project

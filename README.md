@@ -21,6 +21,9 @@ your ABI set, or your process model; see "Constraints" below.
   adopting it is an explicit `include` rather than something `:launcher` drags in — see
   `docs/TOUCH-GAMEPAD.md`. It keeps `:launcher`'s no-native rule: the one thing it cannot do itself,
   deliver a press to a game engine, is left to the host as a two-method `TouchGamepadSink`.
+  RadialGamePad is the invisible input layer; what is drawn is a Kenney "Mobile Controls" Style C
+  skin (CC0). The editor sizes, moves and shows/hides each control; the d-pad answers its whole
+  square.
 - **`sample/`** — a minimal app demonstrating the adoption steps end to end, against a dummy game
   Activity that stands in for a real engine.
 - **`docs/`** — `UI-SPEC.md` (the Dustaet visual standard this library ships), `CLOUD-SPEC.md`

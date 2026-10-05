@@ -30,8 +30,12 @@ dependencies {
 README.md.)
 
 `:touchpad` — the on-screen gamepad — is a **separate, optional** module with its own adoption
-steps, because it links GPL-3.0 code that must not reach a host that has no use for it. Nothing in
-this document assumes it; see `TOUCH-GAMEPAD.md` if you want it.
+steps, because it links GPL-3.0 code that must not reach a host that has no use for it. It is the
+real thing, not a stub: RadialGamePad as the invisible input layer, a Kenney Style C (CC0) sprite
+skin on top, a launcher-side layout editor with per-control size and a **Visible** switch, and a
+square D-pad hit area. Nothing in this document assumes it; see `TOUCH-GAMEPAD.md` if you want it.
+A host needs `implementation project(':touchpad')`, a `TouchGamepadSink`, one
+`TouchGamepadHost.install(...)` and one `TouchGamepadOverlay.attach(...)`.
 
 ## 2. Build a `LauncherConfig` and install it
 
