@@ -36,6 +36,9 @@ data class AspectOption(val value: String, val label: String)
  *   exists is that the interesting facts about a launch (which game build is installed, whether the
  *   next start is modded) are changed from screens inside this same launcher, so a subtitle computed
  *   once at config-build time would be stale the moment the player came back from one of them.
+ * @param mainScreenNotice Optional LIVE warning line shown between the header and PLAY in the error
+ *   colour (e.g. "untested game version"), re-evaluated on every main-screen resume like
+ *   [gameSubtitleProvider]. Null/blank = no line. Informational only: it never blocks PLAY.
  * @param appLabel Human-readable product name used in prose (crash report headers, cloud gist
  *   description/README, log ring header) - does NOT set `android:label`; that stays a static
  *   manifest attribute the host app owns (see docs/INTEGRATION.md).
@@ -128,6 +131,7 @@ data class LauncherConfig(
     val gameTitle: String,
     val gameSubtitle: String,
     val gameSubtitleProvider: ((Context) -> String?)? = null,
+    val mainScreenNotice: ((Context) -> String?)? = null,
     val appLabel: String,
     val footerText: String = "Personal build, not for distribution",
     val downloadsFolderName: String,

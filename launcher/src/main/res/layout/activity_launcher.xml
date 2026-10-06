@@ -68,6 +68,16 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- LauncherConfig.mainScreenNotice: a persistent one-line warning (GONE when blank). -->
+            <TextView
+                android:id="@+id/pl_main_notice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textColor="@color/pl_error"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
             <!-- PLAY: the one filled control on the screen -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/pl_play_button"

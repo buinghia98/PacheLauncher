@@ -4,7 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.format.Formatter
+import android.text.style.ForegroundColorSpan
+import android.util.Log
 import android.view.View
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -16,6 +20,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -413,7 +418,11 @@ class DataBuildActivity : AppCompatActivity() {
                 DataBuildStorage.finish(this, config, variant.id, summary)
                 val seconds = (System.currentTimeMillis() - started) / 1000
                 LauncherLog.write("databuild", "build '${variant.id}' finished in ${seconds}s: $summary")
-                runOnUiThread { done(summary, seconds) }
+                val warning = runCatching { config.postBuildWarning?.invoke(this) }
+                    .onFailure { Log.w(LauncherLog.tag, "postBuildWarning failed", it) }
+                    .getOrNull()?.takeIf { it.isNotBlank() }
+                if (warning != null) LauncherLog.write("databuild", "post-build warning: $warning")
+                runOnUiThread { done(summary, seconds, warning) }
             } catch (t: Throwable) {
                 runOnUiThread { failed(t) }
             } finally {
@@ -449,14 +458,23 @@ class DataBuildActivity : AppCompatActivity() {
         if (known) bar.setProgressCompat((1000 * fraction).toInt().coerceIn(0, 1000), true)
     }
 
-    private fun done(summary: List<String>, seconds: Long) {
+    private fun done(summary: List<String>, seconds: Long, warning: String? = null) {
         bar.visibility = View.GONE
         current.visibility = View.GONE
         counts.visibility = View.GONE
         phase.visibility = View.GONE
-        val text = buildString {
+        val text = SpannableStringBuilder().apply {
             append(getString(R.string.pl_build_done, seconds / 60, seconds % 60))
             summary.forEach { append("\n"); append(it) }
+            if (warning != null) {
+                append("\n")
+                val start = length
+                append(warning)
+                setSpan(
+                    ForegroundColorSpan(ContextCompat.getColor(this@DataBuildActivity, R.color.pl_error)),
+                    start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
         }
         status.text = text
         AlertDialog.Builder(this)

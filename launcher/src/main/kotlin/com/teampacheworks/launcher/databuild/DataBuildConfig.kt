@@ -44,6 +44,10 @@ import java.io.File
  *   Called on the main thread; keep it to a few `stat`s. Null (default) = no gate.
  * @param consumeSourceSwitch Replaces the two-row "keep it / use it up" choice with one switch
  *   (`pl_build_consume_switch`, default off) for folder sources, and hides it for archive sources.
+ * @param postBuildWarning Optional one-line caveat about the data that was just built, e.g. "this
+ *   game version is untested". Called on the worker thread after a successful build (sentinel
+ *   already removed, receipt written); non-blank text is shown in the error colour under the
+ *   completion summary and in the completion dialog. It never fails or undoes the build.
  */
 data class DataBuildConfig(
     val gameId: String,
@@ -54,7 +58,8 @@ data class DataBuildConfig(
     val archiveMimeTypes: List<String> = emptyList(),
     val showOnMainScreen: Boolean = false,
     val launchReady: ((Context) -> Boolean)? = null,
-    val consumeSourceSwitch: Boolean = false
+    val consumeSourceSwitch: Boolean = false,
+    val postBuildWarning: ((Context) -> String?)? = null
 ) {
     /**
      * Written for the whole operation and removed only on success. Its presence means a partly-built

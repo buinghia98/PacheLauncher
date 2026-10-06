@@ -161,6 +161,7 @@ class LauncherActivity : AppCompatActivity() {
         // an empty one -- the same rule every hint below follows (OptionRows "blank text is no
         // element").
         refreshSubtitle()
+        refreshNotice()
         OptionRows.goneIfBlank(findViewById(R.id.pl_footer), config.footerText)
 
         aspectSpinner = findViewById(R.id.pl_aspect_spinner)
@@ -616,6 +617,7 @@ class LauncherActivity : AppCompatActivity() {
         refreshAssetState()
         refreshScreenOptionIndices()
         refreshSubtitle()
+        refreshNotice()
         LauncherLog.enabled = prefs.getBoolean(KEY_DEBUG, false)
         val suffix = config.gameProcessSuffix ?: return
         val gameProcess = "$packageName$suffix"
@@ -658,6 +660,17 @@ class LauncherActivity : AppCompatActivity() {
         }
         val text = if (live.isNullOrBlank()) config.gameSubtitle else live
         OptionRows.goneIfBlank(findViewById(R.id.pl_subtitle), text)
+    }
+
+    /** Draws [LauncherConfig.mainScreenNotice]; contained like [refreshSubtitle]. */
+    private fun refreshNotice() {
+        val text = try {
+            config.mainScreenNotice?.invoke(this)
+        } catch (t: Throwable) {
+            Log.w(LauncherLog.tag, "mainScreenNotice failed - hiding the notice", t)
+            null
+        }
+        OptionRows.goneIfBlank(findViewById(R.id.pl_main_notice), text.orEmpty())
     }
 
     private fun currentAspect(): String = config.aspectOptions[aspectIndex].value
