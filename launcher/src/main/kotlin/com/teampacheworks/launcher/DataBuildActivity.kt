@@ -9,6 +9,7 @@ import android.text.Spanned
 import android.text.format.Formatter
 import android.text.style.ForegroundColorSpan
 import android.util.Log
+import android.view.Gravity
 import android.view.View
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -248,10 +249,11 @@ class DataBuildActivity : AppCompatActivity() {
         variantGroup.visibility = if (noChoice) View.GONE else View.VISIBLE
 
         // Keep/consume only means something for a folder; an archive is never consumed.
-        if (config.consumeSourceSwitch) {
+        if (config.consumeSourceSwitch || !config.showSourceModes) {
             sourceTitle.visibility = View.GONE
             sourceGroup.visibility = View.GONE
-            consumeSwitch.visibility = if (picked != null) View.VISIBLE else View.GONE
+            consumeSwitch.visibility =
+                if (picked != null && config.showSourceModes) View.VISIBLE else View.GONE
             if (picked == null) consumeSwitch.isChecked = false
         }
 
@@ -340,22 +342,29 @@ class DataBuildActivity : AppCompatActivity() {
      * transfer from the PC if the player later wants a different variant.
      */
     private fun addSourceModes() {
-        if (config.consumeSourceSwitch) {
+        if (!config.showSourceModes || config.consumeSourceSwitch) {
             sourceTitle.visibility = View.GONE
             sourceGroup.visibility = View.GONE
             consumeSwitch.isChecked = false
             return
         }
+        val density = resources.displayMetrics.density
         sourceGroup.removeAllViews()
         listOf(
             R.string.pl_build_source_keep to R.string.pl_build_source_keep_hint,
             R.string.pl_build_source_consume to R.string.pl_build_source_consume_hint
         ).forEachIndexed { index, (label, note) ->
+            val hint = getString(note, config.sourceFolderName)
             sourceGroup.addView(RadioButton(this).apply {
                 id = View.generateViewId()
                 tag = index
-                text = "${getString(label)}\n${getString(note, config.sourceFolderName)}"
+                text = sourceModeText(getString(label), hint)
                 textSize = 14f
+                minHeight = (48 * density).toInt()
+                // No hint: one line, centred on the button. Hint: the button sits on the first line
+                // instead of floating between the two.
+                gravity = if (hint.isBlank()) Gravity.CENTER_VERTICAL else Gravity.TOP
+                if (hint.isNotBlank()) setPadding(paddingLeft, (12 * density).toInt(), paddingRight, (12 * density).toInt())
             })
         }
         sourceGroup.check(sourceGroup.getChildAt(0).id)
@@ -372,7 +381,7 @@ class DataBuildActivity : AppCompatActivity() {
         if (picked == null && pickedArchive == null) return
         if (worker != null) return
         val variant = variants.getOrNull(selectedIndex(variantGroup)) ?: return
-        val consume = picked != null && if (config.consumeSourceSwitch) {
+        val consume = picked != null && config.showSourceModes && if (config.consumeSourceSwitch) {
             consumeSwitch.isChecked
         } else {
             selectedIndex(sourceGroup) == 1
@@ -533,3 +542,7 @@ class DataBuildActivity : AppCompatActivity() {
         val NUMBER: java.text.NumberFormat = java.text.NumberFormat.getIntegerInstance()
     }
 }
+
+/** Radio text: the label alone when there is no hint (single line), else label and hint on two lines. */
+internal fun sourceModeText(label: String, hint: String): String =
+    if (hint.isBlank()) label else label + "\n" + hint.trim()

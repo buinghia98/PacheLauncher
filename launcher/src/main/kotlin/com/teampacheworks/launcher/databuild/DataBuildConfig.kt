@@ -48,6 +48,8 @@ import java.io.File
  *   game version is untested". Called on the worker thread after a successful build (sentinel
  *   already removed, receipt written); non-blank text is shown in the error colour under the
  *   completion summary and in the completion dialog. It never fails or undoes the build.
+ * @param showSourceModes `false` hides the keep / delete-the-source choice (radios or switch) and the
+ *   source is never consumed. For hosts whose builder never moves the source. Default `true`.
  */
 data class DataBuildConfig(
     val gameId: String,
@@ -59,7 +61,8 @@ data class DataBuildConfig(
     val showOnMainScreen: Boolean = false,
     val launchReady: ((Context) -> Boolean)? = null,
     val consumeSourceSwitch: Boolean = false,
-    val postBuildWarning: ((Context) -> String?)? = null
+    val postBuildWarning: ((Context) -> String?)? = null,
+    val showSourceModes: Boolean = true
 ) {
     /**
      * Written for the whole operation and removed only on success. Its presence means a partly-built

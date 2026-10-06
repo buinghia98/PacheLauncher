@@ -188,6 +188,11 @@ into four extras, all off by default:
 | `archiveMimeTypes = listOf("application/zip")` | Second picker button (`pl_build_choose_archive`) for one archive file; implement `DataBuilder.inspectArchive` and read `BuildRequest.archive` with `SafZip` (central-directory reader over the document's fd: listing is instant, entries stream one at a time; STORED/DEFLATED, Zip64). `BuildRequest.source` is folder-only; `sourceTree` is null for an archive build. |
 | `consumeSourceSwitch = true` | One switch (`pl_build_consume_switch`, default off) instead of the keep/use-up radio pair; hidden for archives. |
 
+`showSourceModes = false` (default `true`, for any host) hides the keep / delete-the-source choice
+entirely and the source is never consumed; use it when your `DataBuilder` ignores
+`request.consumeSource`. With the choice shown, a blank `pl_build_source_*_hint` string draws a
+one-line radio; a non-blank one draws label and hint on two lines.
+
 A single variant with a blank label is drawn as no choice. Every on-screen string is a
 `pl_build_*` resource, so a host shortens or rewords the copy by redefining those names in its own
 `res/values/strings.xml`.
