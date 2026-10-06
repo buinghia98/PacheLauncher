@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  Data build / import screen. The toolbar is standalone - `setSupportActionBar` is never called on it
+  (docs/UI-SPEC.md), exactly as Save Management and the option screens do it - so the title bar,
+  font and Back arrow match every other screen behind the main one.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/pl_build_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        app:navigationIcon="@drawable/ic_arrow_back"
+        app:title="@string/pl_build_title" />
+
+<ScrollView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true">
@@ -10,22 +28,15 @@
         android:layout_gravity="center_horizontal"
         android:maxWidth="680dp"
         android:orientation="vertical"
-        android:padding="24dp">
-
-        <TextView
-            android:id="@+id/pl_build_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/pl_build_title"
-            android:textColor="?attr/colorPrimary"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="24dp">
 
         <TextView
             android:id="@+id/pl_build_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
             android:textColor="?android:attr/textColorSecondary"
             android:textSize="12sp" />
 
@@ -160,7 +171,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/pl_build_choose"
-            style="@style/Widget.Material3.Button"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -169,7 +180,7 @@
         <!-- DataBuildConfig.archiveMimeTypes: pick one archive file instead of a folder. -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/pl_build_choose_archive"
-            style="@style/Widget.Material3.Button.TonalButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -194,3 +205,4 @@
             android:textSize="11sp" />
     </com.teampacheworks.launcher.ui.MaxWidthLinearLayout>
 </ScrollView>
+</LinearLayout>

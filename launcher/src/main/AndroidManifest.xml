@@ -35,6 +35,17 @@
       as "stop at the next safe boundary". Letting a wrist movement cancel a forty-minute build is
       a worse bug than the one being fixed.
     -->
+    <!--
+      ONE THEME FOR EVERY SCREEN.
+
+      Only LauncherActivity names a theme (Theme.PacheLauncher, which the host replaces with its own
+      from its manifest). Every screen behind it carries NO android:theme, so it inherits the host's
+      <application android:theme> - which docs/INTEGRATION.md already requires to extend
+      Theme.PacheLauncher. They used to name Theme.PacheLauncher themselves, which silently kept the
+      library's placeholder seed colour on every secondary screen: with DynamicColors overriding
+      colorPrimary but not colorPrimaryDark, the only visible symptom was a green status bar on
+      Manage saves / option screens / Import while the main screen's was the host's colour.
+    -->
     <application>
         <activity
             android:name="com.teampacheworks.launcher.LauncherActivity"
@@ -48,24 +59,21 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
-            android:theme="@style/Theme.PacheLauncher" />
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity" />
 
         <activity
             android:name="com.teampacheworks.launcher.CloudBackupActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
-            android:theme="@style/Theme.PacheLauncher" />
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity" />
 
         <activity
             android:name="com.teampacheworks.launcher.AssetManagementActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
-            android:theme="@style/Theme.PacheLauncher" />
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity" />
 
         <!-- keepScreenOn is deliberately NOT set here: the wake lock keeps the move running, so the
              user should be free to put the tablet down. -->
@@ -74,8 +82,7 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:parentActivityName="com.teampacheworks.launcher.AssetManagementActivity"
-            android:theme="@style/Theme.PacheLauncher" />
+            android:parentActivityName="com.teampacheworks.launcher.AssetManagementActivity" />
 
         <!-- Same wake-lock reasoning as DeployImportActivity: a build is tens of minutes of file
              work and must survive the screen going off. -->
@@ -84,24 +91,21 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:parentActivityName="com.teampacheworks.launcher.AssetManagementActivity"
-            android:theme="@style/Theme.PacheLauncher" />
+            android:parentActivityName="com.teampacheworks.launcher.AssetManagementActivity" />
 
         <activity
             android:name="com.teampacheworks.launcher.GpuDriverManagementActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
-            android:theme="@style/Theme.PacheLauncher" />
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity" />
 
         <activity
             android:name="com.teampacheworks.launcher.ModManagementActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
-            android:theme="@style/Theme.PacheLauncher" />
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity" />
 
         <!-- One activity for every LauncherOptionScreen a host declares; which one it draws comes
              from the Intent (OptionScreenActivity.EXTRA_SCREEN_KEY), because the screens are config
@@ -111,7 +115,6 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity"
-            android:theme="@style/Theme.PacheLauncher" />
+            android:parentActivityName="com.teampacheworks.launcher.LauncherActivity" />
     </application>
 </manifest>

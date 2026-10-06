@@ -21,6 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -98,7 +99,8 @@ class DataBuildActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         if (LauncherHost.config.dataBuild == null) { finish(); return }
         setContentView(R.layout.activity_data_build)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        findViewById<MaterialToolbar>(R.id.pl_build_toolbar)
+            .setNavigationOnClickListener { navigateUp() }
 
         status = findViewById(R.id.pl_build_status)
         planCard = findViewById(R.id.pl_build_plan_card)
@@ -145,9 +147,8 @@ class DataBuildActivity : AppCompatActivity() {
         }
     }
 
-    override fun onSupportNavigateUp(): Boolean {
+    private fun navigateUp() {
         if (worker != null) requestCancel() else finish()
-        return true
     }
 
     // ------------------------------------------------------------------ choose and inspect

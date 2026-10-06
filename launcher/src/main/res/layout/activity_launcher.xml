@@ -93,7 +93,7 @@
             <!-- DataBuildConfig.showOnMainScreen: the data import/build screen, right under PLAY. -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/pl_data_build_button"
-                style="@style/Widget.Material3.Button.TonalButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"

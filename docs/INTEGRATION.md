@@ -228,6 +228,11 @@ by overriding `LauncherActivity` through a merge:
 `colorPrimary`/`colorPrimaryDark` with colours derived from your own key art — see
 docs/UI-SPEC.md "Per-game seed colour" and `sample/`'s theme override for the exact pattern.
 
+Set the same theme on `<application>`: only LauncherActivity names a theme in the library manifest;
+every other launcher screen (Manage saves, option screens, data import, ...) inherits the application
+theme, so a host that themes only LauncherActivity gets a mismatched status bar and accent colours
+behind the main screen.
+
 ## 4. Exclude cloud state from Auto Backup
 
 The token file and cloud bookkeeping must never ride along in an Android Auto Backup transfer —
