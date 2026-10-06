@@ -77,7 +77,7 @@ object CrashReporter {
         }
     }
 
-    private fun header(sb: StringBuilder, title: String) {
+    private fun header(sb: StringBuilder, title: String, context: Context? = null) {
         val appLabel = try { LauncherHost.config.appLabel } catch (t: Throwable) { "app" }
         sb.append("=== ").append(appLabel).append(' ').append(title).append(" ===\n")
         sb.append("Time: ")
@@ -85,6 +85,19 @@ object CrashReporter {
         sb.append("Process: ").append(processTag).append('\n')
         sb.append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
             .append(", Android API ").append(Build.VERSION.SDK_INT).append('\n')
+        val ctx = context ?: appContext ?: return
+        try {
+            val info = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
+            sb.append("App: ").append(ctx.packageName).append(' ').append(info.versionName)
+                .append(" (").append(info.longVersionCode).append(")\n")
+        } catch (ignored: Throwable) {
+        }
+        try {
+            LauncherHost.config.reportExtras?.invoke(ctx)?.forEach { (k, v) ->
+                sb.append(k).append(": ").append(v).append('\n')
+            }
+        } catch (ignored: Throwable) {
+        }
     }
 
     // ------------------------------------------------- historical process exits
@@ -100,6 +113,12 @@ object CrashReporter {
      * [abnormal] decides which exits are worth a notice; the default is [isAbnormal] (reason only),
      * a direct-launch host passes [isUncleanGameExit] so that every exit which sends the player
      * back to the launcher is also explained there.
+     *
+     * Unlike the in-process crash report, this one does NOT depend on [LauncherLog.enabled]: the
+     * platform keeps the exit record either way, and a native crash is exactly the case nobody
+     * turned logging on for. The platform trace is saved raw beside the report
+     * (`exit_game_<ts>.trace.pb` for a native-crash Tombstone protobuf, `.trace.txt` for a text
+     * ANR/Java trace) and a tombstone is also rendered as text inside it ([TombstoneDecoder]).
      */
     fun checkGameProcessExit(
         context: Context,
@@ -115,7 +134,7 @@ object CrashReporter {
             } ?: return null
 
             val sb = StringBuilder(4096)
-            header(sb, "process exit report")
+            header(sb, "process exit report", context)
             sb.append('\n').append("--- Abnormal exit of ").append(gameProcessName).append(" ---\n")
             sb.append("Reason: ").append(reasonName(hit.reason)).append(" (").append(hit.reason).append(")\n")
             sb.append("Status: ").append(hit.status).append('\n')
@@ -124,15 +143,39 @@ object CrashReporter {
             sb.append("When: ")
                 .append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(hit.timestamp)))
                 .append('\n')
-            try {
-                hit.traceInputStream?.use { ins ->
-                    sb.append("\n--- Platform trace ---\n")
-                    sb.append(String(ins.readBytes(), Charsets.UTF_8))
-                }
+            // The trace is binary for a native crash (a Tombstone protobuf, which a String()
+            // round-trip destroys) and text for ANR / Java crashes. Either way the raw bytes are
+            // kept untouched next to the report; the report itself gets a readable rendering.
+            val stamp = LogExport.timestamp()
+            val trace = try {
+                hit.traceInputStream?.use { it.readBytes() }
             } catch (ignored: Throwable) {
+                null
+            }
+            if (trace != null && trace.isNotEmpty()) {
+                val binary = hit.reason == ApplicationExitInfo.REASON_CRASH_NATIVE ||
+                    TombstoneDecoder.looksLikeProtobuf(trace)
+                val traceName = "exit_game_$stamp.trace." + if (binary) "pb" else "txt"
+                val traceSaved = try {
+                    LogExport.writeBytes(
+                        context, traceName, trace,
+                        if (binary) "application/octet-stream" else "text/plain"
+                    )
+                } catch (ignored: Throwable) {
+                    null
+                }
+                sb.append("Raw trace: ").append(traceSaved ?: "(not saved)").append('\n')
+                if (binary) {
+                    sb.append("\n--- Native crash (decoded tombstone) ---\n")
+                    val labels = try { LauncherHost.config.nativeImageLabels } catch (t: Throwable) { emptyMap() }
+                    sb.append(TombstoneDecoder.render(trace, labels))
+                } else {
+                    sb.append("\n--- Platform trace ---\n")
+                    sb.append(String(trace, Charsets.UTF_8))
+                }
             }
 
-            val name = "exit_game_${LogExport.timestamp()}.log"
+            val name = "exit_game_$stamp.log"
             val saved = LogExport.write(context, name, LauncherLog.scrub(sb.toString()))
             ExitNotice("The game exited abnormally last time (${reasonName(hit.reason)}).", saved)
         } catch (t: Throwable) {

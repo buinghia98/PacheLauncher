@@ -126,6 +126,13 @@ data class AspectOption(val value: String, val label: String)
  *   "Always start with launcher" switch that restores the classic behaviour. Requires
  *   [gameProcessSuffix] (exits are classified from that process's ApplicationExitInfo). Default
  *   false = the launcher behaves exactly as it always did.
+ * @param reportExtras Extra `key: value` lines for the header of every crash / exit report (e.g.
+ *   build flavor, installed game-data version). Called on the way into a report, in whichever
+ *   process writes it; must be cheap and must not depend on UI state. A throw is ignored.
+ * @param nativeImageLabels Anonymous executable regions to name in decoded native-crash
+ *   tombstones: base address -> label. A pc inside the contiguous mappings that start at a base is
+ *   printed as `label+0x<offset>` (e.g. `0x100000000L to "mach-o"` for a guest image a loader maps
+ *   there). Empty by default.
  */
 data class LauncherConfig(
     val gameTitle: String,
@@ -183,7 +190,9 @@ data class LauncherConfig(
     val iconRes: Int,
     val gameProcessSuffix: String? = ":game",
     val cloudBackupEnabled: Boolean = true,
-    val directLaunch: Boolean = false
+    val directLaunch: Boolean = false,
+    val reportExtras: ((Context) -> List<Pair<String, String>>)? = null,
+    val nativeImageLabels: Map<Long, String> = emptyMap()
 ) {
     fun resolveSaveDirectory(context: Context): File = saveDirectory(context) ?: context.filesDir
 }

@@ -38,8 +38,17 @@ object LogExport {
     /**
      * @return a human-readable description of where the file went, or null if nothing was written.
      */
-    fun write(context: Context, fileName: String, content: String): String? {
-        viaMediaStore(context, fileName, content)?.let { return it }
+    fun write(context: Context, fileName: String, content: String): String? =
+        writeBytes(context, fileName, content.toByteArray(Charsets.UTF_8), "text/plain")
+
+    /**
+     * Same fallback ladder as [write], for raw bytes (e.g. a binary tombstone next to a crash
+     * report). [mimeType] matters only for the MediaStore branch.
+     *
+     * @return a human-readable description of where the file went, or null if nothing was written.
+     */
+    fun writeBytes(context: Context, fileName: String, content: ByteArray, mimeType: String): String? {
+        viaMediaStore(context, fileName, content, mimeType)?.let { return it }
         viaPublicDownloads(fileName, content)?.let { return it }
         viaAppExternal(context, fileName, content)?.let { return it }
         try {
@@ -49,10 +58,10 @@ object LogExport {
         return null
     }
 
-    private fun viaMediaStore(context: Context, fileName: String, content: String): String? = try {
+    private fun viaMediaStore(context: Context, fileName: String, content: ByteArray, mimeType: String): String? = try {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
             put(MediaStore.MediaColumns.RELATIVE_PATH, RELATIVE_PATH)
         }
         val resolver = context.contentResolver
@@ -62,7 +71,7 @@ object LogExport {
         } else {
             resolver.openOutputStream(uri, "wt").use { out ->
                 if (out == null) null else {
-                    out.write(content.toByteArray(Charsets.UTF_8))
+                    out.write(content)
                     out.flush()
                     "Downloads/$FOLDER/$fileName"
                 }
@@ -72,22 +81,22 @@ object LogExport {
         null
     }
 
-    private fun viaPublicDownloads(fileName: String, content: String): String? = try {
+    private fun viaPublicDownloads(fileName: String, content: ByteArray): String? = try {
         @Suppress("DEPRECATION")
         val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), FOLDER)
         if (!dir.exists()) dir.mkdirs()
         val f = File(dir, fileName)
-        f.writeText(content)
+        f.writeBytes(content)
         f.absolutePath
     } catch (t: Throwable) {
         null
     }
 
-    private fun viaAppExternal(context: Context, fileName: String, content: String): String? = try {
+    private fun viaAppExternal(context: Context, fileName: String, content: ByteArray): String? = try {
         val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "logs")
         if (!dir.exists()) dir.mkdirs()
         val f = File(dir, fileName)
-        f.writeText(content)
+        f.writeBytes(content)
         f.absolutePath
     } catch (t: Throwable) {
         null
