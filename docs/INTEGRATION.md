@@ -178,6 +178,20 @@ LauncherHost.config.dataBuild?.let {
 The button lands on the Manage Assets screen below "Import install folder": importing a folder
 somebody already built is the shorter road whenever one exists.
 
+**First-run import hosts** (the player's own game files ARE the data, e.g. a "lite" APK) can opt
+into four extras, all off by default:
+
+| `DataBuildConfig` field | Effect |
+|---|---|
+| `showOnMainScreen = true` | Button `pl_build_main_button` directly under PLAY opens this screen. |
+| `launchReady = { ... }` | PLAY and a direct launch open this screen instead of the game while it returns false or a build is half-done — no gate code of your own needed. |
+| `archiveMimeTypes = listOf("application/zip")` | Second picker button (`pl_build_choose_archive`) for one archive file; implement `DataBuilder.inspectArchive` and read `BuildRequest.archive` with `SafZip` (central-directory reader over the document's fd: listing is instant, entries stream one at a time; STORED/DEFLATED, Zip64). `BuildRequest.source` is folder-only; `sourceTree` is null for an archive build. |
+| `consumeSourceSwitch = true` | One switch (`pl_build_consume_switch`, default off) instead of the keep/use-up radio pair; hidden for archives. |
+
+A single variant with a blank label is drawn as no choice. Every on-screen string is a
+`pl_build_*` resource, so a host shortens or rewords the copy by redefining those names in its own
+`res/values/strings.xml`.
+
 ## 3. Manifest
 
 The library's own manifest already declares `LauncherActivity`, `SaveManagementActivity`,

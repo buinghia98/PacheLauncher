@@ -1,6 +1,7 @@
 package com.teampacheworks.launcher.databuild
 
 import android.content.Context
+import android.net.Uri
 import java.io.File
 
 /**
@@ -31,13 +32,29 @@ import java.io.File
  * @param requiresNetwork Whether the build may need to download. Only used to decide whether the
  *   screen warns about Wi-Fi before it starts; the framework never checks connectivity itself,
  *   because only the builder knows whether *this* variant on *this* device has anything to fetch.
+ * @param archiveMimeTypes Non-empty adds a second picker button (`pl_build_choose_archive`) that
+ *   opens a single FILE of one of these types (e.g. `application/zip`) instead of a folder. The
+ *   pick goes to [DataBuilder.inspectArchive] and the build gets it as [BuildRequest.archive]. Read
+ *   it with [SafZip]. Empty (default) = folder only, exactly as before.
+ * @param showOnMainScreen Adds a button (`pl_build_main_button`) directly under PLAY on the
+ *   launcher's main screen that opens this screen. For hosts where building/importing the data is
+ *   the first thing a player does, not a maintenance task under Manage assets.
+ * @param launchReady Non-null makes this config a PLAY gate: while a build is half-done (sentinel)
+ *   or this returns false, PLAY - and a direct launch - opens this screen instead of the game.
+ *   Called on the main thread; keep it to a few `stat`s. Null (default) = no gate.
+ * @param consumeSourceSwitch Replaces the two-row "keep it / use it up" choice with one switch
+ *   (`pl_build_consume_switch`, default off) for folder sources, and hides it for archive sources.
  */
 data class DataBuildConfig(
     val gameId: String,
     val sourceFolderName: String,
     val destinationDirectory: (Context) -> File?,
     val builder: DataBuilder,
-    val requiresNetwork: Boolean = false
+    val requiresNetwork: Boolean = false,
+    val archiveMimeTypes: List<String> = emptyList(),
+    val showOnMainScreen: Boolean = false,
+    val launchReady: ((Context) -> Boolean)? = null,
+    val consumeSourceSwitch: Boolean = false
 ) {
     /**
      * Written for the whole operation and removed only on success. Its presence means a partly-built
@@ -69,6 +86,14 @@ interface DataBuilder {
     fun inspect(context: Context, source: SafTree, cancelled: () -> Boolean): Inspection
 
     /**
+     * Like [inspect], for a single archive file picked through [DataBuildConfig.archiveMimeTypes].
+     * Only called when that list is non-empty; the default refuses, so a builder that never opts in
+     * has nothing to implement.
+     */
+    fun inspectArchive(context: Context, archive: Uri, cancelled: () -> Boolean): Inspection =
+        Inspection(headline = "", problem = "Archives are not supported here.")
+
+    /**
      * Do the work. Returns the lines shown in the completion dialog, most important first.
      *
      * @param progress may be called from any thread and at any rate; the framework throttles it
@@ -89,7 +114,8 @@ interface DataBuilder {
  * @param details Supporting lines, one fact each -- what was found, what was not, and what that
  *   costs. This is where a missing optional input is explained, and it is the only place the player
  *   can learn *why* a variant below is greyed out.
- * @param variants What may be built, in display order. The first enabled one is pre-selected.
+ * @param variants What may be built, in display order. The first enabled one is pre-selected. A
+ *   single variant with a blank label is drawn as no choice at all (the heading and row are hidden).
  * @param options Extra choices the build takes, drawn under the variants. Use these for a decision
  *   that is INDEPENDENT of the variant -- which asset qualities to include, which language pack --
  *   rather than multiplying the variant list by every combination of them.
@@ -152,12 +178,19 @@ data class BuildVariant(
  *   job, and a builder with nothing to gain from consuming is free to ignore it.
  */
 data class BuildRequest(
-    val source: SafTree,
+    /** The picked folder; null when the build was started from an [archive]. */
+    val sourceTree: SafTree?,
     val variantId: String,
     val consumeSource: Boolean,
     /** Chosen ids per [BuildOption.key], in the order the option declared them. */
-    val selections: Map<String, List<String>> = emptyMap()
+    val selections: Map<String, List<String>> = emptyMap(),
+    /** The picked archive file ([DataBuildConfig.archiveMimeTypes]); null for a folder build. */
+    val archive: Uri? = null
 ) {
+    /** The picked folder. Folder builds only - an archive build has [archive] instead. */
+    val source: SafTree
+        get() = sourceTree ?: error("this build was started from an archive; read BuildRequest.archive")
+
     fun selected(key: String): List<String> = selections[key].orEmpty()
 }
 

@@ -13,6 +13,7 @@
         android:padding="24dp">
 
         <TextView
+            android:id="@+id/pl_build_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/pl_build_title"
@@ -96,6 +97,15 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical" />
+
+                <!-- DataBuildConfig.consumeSourceSwitch: one switch instead of the group above. -->
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/pl_build_consume_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/pl_build_consume_switch"
+                    android:visibility="gone" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -155,6 +165,16 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:text="@string/pl_build_choose" />
+
+        <!-- DataBuildConfig.archiveMimeTypes: pick one archive file instead of a folder. -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/pl_build_choose_archive"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/pl_build_choose_archive"
+            android:visibility="gone" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/pl_build_cancel"

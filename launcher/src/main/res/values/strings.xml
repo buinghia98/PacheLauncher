@@ -250,6 +250,10 @@
     <string name="pl_build_done">Done in %1$dm %2$ds.</string>
     <string name="pl_build_failed">Build failed: %1$s</string>
     <string name="pl_build_hint">The app writes the data itself, so the files are readable. This takes a long time.</string>
+    <string name="pl_build_choose_archive">Choose archive file…</string>
+    <string name="pl_build_consume_switch">Delete the source folder after the build</string>
+    <string name="pl_build_main_button">Build game data</string>
+    <string name="pl_build_launch_blocked">Game data is not installed yet.</string>
     <string name="pl_build_hint_network">The app writes the data itself, so the files are readable. Some parts are downloaded — use Wi-Fi. This takes a long time.</string>
     <string name="pl_assets_build_half_done">A build was interrupted. Open Build data from PC game files to finish it.</string>
 </resources>

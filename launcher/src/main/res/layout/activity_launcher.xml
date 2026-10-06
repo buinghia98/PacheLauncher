@@ -80,6 +80,16 @@
                 android:textStyle="bold"
                 app:cornerRadius="32dp" />
 
+            <!-- DataBuildConfig.showOnMainScreen: the data import/build screen, right under PLAY. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pl_data_build_button"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="@string/pl_build_main_button"
+                android:visibility="gone" />
+
             <!-- Structural parity with the Dustaet design standard: a host with no first-run
                  asset-install step leaves these three GONE, but the structure exists so every
                  port using this library stays in lock-step. -->

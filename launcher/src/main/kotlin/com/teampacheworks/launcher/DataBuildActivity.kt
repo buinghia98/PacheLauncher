@@ -18,6 +18,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.teampacheworks.launcher.databuild.BuildOption
 import com.teampacheworks.launcher.databuild.BuildProgress
@@ -60,6 +61,10 @@ class DataBuildActivity : AppCompatActivity() {
     private lateinit var chooseButton: MaterialButton
     private lateinit var cancelButton: MaterialButton
     private lateinit var hint: TextView
+    private lateinit var chooseArchiveButton: MaterialButton
+    private lateinit var variantTitle: TextView
+    private lateinit var sourceTitle: TextView
+    private lateinit var consumeSwitch: MaterialSwitch
 
     private val cancelled = AtomicBoolean(false)
     private var worker: Thread? = null
@@ -67,6 +72,8 @@ class DataBuildActivity : AppCompatActivity() {
     private var backGuard: OnBackPressedCallback? = null
 
     private var tree: SafTree? = null
+    /** The picked archive ([DataBuildConfig.archiveMimeTypes]); exclusive with [tree]. */
+    private var archive: Uri? = null
     private var variants: List<BuildVariant> = emptyList()
     private var options: List<BuildOption> = emptyList()
     /** Live selection per option key, in declaration order. Read straight into [BuildRequest]. */
@@ -76,6 +83,10 @@ class DataBuildActivity : AppCompatActivity() {
 
     private val pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) inspect(uri)
+    }
+
+    private val pickArchive = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) inspectArchive(uri)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,12 +110,22 @@ class DataBuildActivity : AppCompatActivity() {
         chooseButton = findViewById(R.id.pl_build_choose)
         cancelButton = findViewById(R.id.pl_build_cancel)
         hint = findViewById(R.id.pl_build_hint)
+        chooseArchiveButton = findViewById(R.id.pl_build_choose_archive)
+        variantTitle = findViewById(R.id.pl_build_variant_title)
+        sourceTitle = findViewById(R.id.pl_build_source_title)
+        consumeSwitch = findViewById(R.id.pl_build_consume_switch)
 
         status.text = getString(R.string.pl_build_intro, config.sourceFolderName)
         hint.text = getString(
             if (config.requiresNetwork) R.string.pl_build_hint_network else R.string.pl_build_hint
         )
         chooseButton.setOnClickListener { pickFolder.launch(null) }
+        if (config.archiveMimeTypes.isNotEmpty()) {
+            chooseArchiveButton.visibility = View.VISIBLE
+            chooseArchiveButton.setOnClickListener {
+                pickArchive.launch(config.archiveMimeTypes.toTypedArray())
+            }
+        }
         cancelButton.setOnClickListener { requestCancel() }
         startButton.setOnClickListener { start() }
 
@@ -138,14 +159,14 @@ class DataBuildActivity : AppCompatActivity() {
         }
         planCard.visibility = View.GONE
         startButton.visibility = View.GONE
-        chooseButton.isEnabled = false
+        setChoosersEnabled(false)
         status.setText(R.string.pl_build_inspecting)
         val picked = SafTree(this, uri)
         Thread {
             val outcome = runCatching { config.builder.inspect(this, picked, { false }) }
             runOnUiThread {
-                chooseButton.isEnabled = true
-                outcome.onSuccess { render(picked, it) }.onFailure {
+                setChoosersEnabled(true)
+                outcome.onSuccess { render(picked, null, it) }.onFailure {
                     LauncherLog.e("databuild", "inspection failed", it)
                     status.text = getString(
                         R.string.pl_build_inspect_failed, it.message ?: it.javaClass.simpleName
@@ -155,9 +176,35 @@ class DataBuildActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun render(picked: SafTree, inspection: Inspection) {
+    /** Same as [inspect], for one archive file. Read-only, so no persistable grant is needed. */
+    private fun inspectArchive(uri: Uri) {
+        planCard.visibility = View.GONE
+        startButton.visibility = View.GONE
+        setChoosersEnabled(false)
+        status.setText(R.string.pl_build_inspecting)
+        Thread {
+            val outcome = runCatching { config.builder.inspectArchive(this, uri, { false }) }
+            runOnUiThread {
+                setChoosersEnabled(true)
+                outcome.onSuccess { render(null, uri, it) }.onFailure {
+                    LauncherLog.e("databuild", "archive inspection failed", it)
+                    status.text = getString(
+                        R.string.pl_build_inspect_failed, it.message ?: it.javaClass.simpleName
+                    )
+                }
+            }
+        }.start()
+    }
+
+    private fun setChoosersEnabled(enabled: Boolean) {
+        chooseButton.isEnabled = enabled
+        chooseArchiveButton.isEnabled = enabled
+    }
+
+    private fun render(picked: SafTree?, pickedArchive: Uri?, inspection: Inspection) {
         if (inspection.problem != null) {
             tree = null
+            archive = null
             renderOptions(emptyList())
             planCard.visibility = View.GONE
             startButton.visibility = View.GONE
@@ -165,6 +212,7 @@ class DataBuildActivity : AppCompatActivity() {
             return
         }
         tree = picked
+        archive = pickedArchive
         variants = inspection.variants
         headline.text = inspection.headline
         details.text = inspection.details.joinToString("\n")
@@ -188,6 +236,18 @@ class DataBuildActivity : AppCompatActivity() {
         val firstEnabled = (0 until variantGroup.childCount)
             .firstOrNull { variantGroup.getChildAt(it).isEnabled }
         if (firstEnabled != null) variantGroup.check(variantGroup.getChildAt(firstEnabled).id)
+        // One unnamed variant is not a choice: draw nothing for it.
+        val noChoice = inspection.variants.size == 1 && inspection.variants[0].label.isBlank()
+        variantTitle.visibility = if (noChoice) View.GONE else View.VISIBLE
+        variantGroup.visibility = if (noChoice) View.GONE else View.VISIBLE
+
+        // Keep/consume only means something for a folder; an archive is never consumed.
+        if (config.consumeSourceSwitch) {
+            sourceTitle.visibility = View.GONE
+            sourceGroup.visibility = View.GONE
+            consumeSwitch.visibility = if (picked != null) View.VISIBLE else View.GONE
+            if (picked == null) consumeSwitch.isChecked = false
+        }
 
         renderOptions(inspection.options)
 
@@ -274,6 +334,12 @@ class DataBuildActivity : AppCompatActivity() {
      * transfer from the PC if the player later wants a different variant.
      */
     private fun addSourceModes() {
+        if (config.consumeSourceSwitch) {
+            sourceTitle.visibility = View.GONE
+            sourceGroup.visibility = View.GONE
+            consumeSwitch.isChecked = false
+            return
+        }
         sourceGroup.removeAllViews()
         listOf(
             R.string.pl_build_source_keep to R.string.pl_build_source_keep_hint,
@@ -295,15 +361,22 @@ class DataBuildActivity : AppCompatActivity() {
     // ------------------------------------------------------------------ building
 
     private fun start() {
-        val picked = tree ?: return
+        val picked = tree
+        val pickedArchive = archive
+        if (picked == null && pickedArchive == null) return
         if (worker != null) return
         val variant = variants.getOrNull(selectedIndex(variantGroup)) ?: return
-        val consume = selectedIndex(sourceGroup) == 1
+        val consume = picked != null && if (config.consumeSourceSwitch) {
+            consumeSwitch.isChecked
+        } else {
+            selectedIndex(sourceGroup) == 1
+        }
 
         cancelled.set(false)
         planCard.visibility = View.GONE
         startButton.visibility = View.GONE
         chooseButton.visibility = View.GONE
+        chooseArchiveButton.visibility = View.GONE
         cancelButton.visibility = View.VISIBLE
         cancelButton.isEnabled = true
         phase.visibility = View.VISIBLE
@@ -328,7 +401,10 @@ class DataBuildActivity : AppCompatActivity() {
                 DataBuildStorage.begin(this, config, variant.id)
                 val summary = config.builder.build(
                     this,
-                    BuildRequest(picked, variant.id, consume, selections.mapValues { it.value.toList() }),
+                    BuildRequest(
+                        picked, variant.id, consume, selections.mapValues { it.value.toList() },
+                        pickedArchive
+                    ),
                     cancelled::get
                 ) { p ->
                     val now = System.currentTimeMillis()
@@ -420,6 +496,7 @@ class DataBuildActivity : AppCompatActivity() {
         worker = null
         backGuard?.isEnabled = false
         chooseButton.visibility = View.VISIBLE
+        if (config.archiveMimeTypes.isNotEmpty()) chooseArchiveButton.visibility = View.VISIBLE
         cancelButton.visibility = View.GONE
         wakeLock?.takeIf { it.isHeld }?.release()
         wakeLock = null

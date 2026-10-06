@@ -262,6 +262,14 @@ class LauncherActivity : AppCompatActivity() {
         exportLogsButton.setOnClickListener { onExportLogsClicked() }
         // The Manage game data card itself is unconditional now (Manage saves and Cloud sync are
         // always there); only the two host-configured buttons on it come and go.
+        config.dataBuild?.takeIf { it.showOnMainScreen }?.let {
+            findViewById<MaterialButton>(R.id.pl_data_build_button).apply {
+                visibility = View.VISIBLE
+                setOnClickListener {
+                    startActivity(Intent(this@LauncherActivity, DataBuildActivity::class.java))
+                }
+            }
+        }
         config.assetManagement?.let {
             findViewById<MaterialButton>(R.id.pl_manage_assets_button).apply {
                 visibility = View.VISIBLE
@@ -698,6 +706,18 @@ class LauncherActivity : AppCompatActivity() {
             if (com.teampacheworks.launcher.deploy.DeployStorage.importInProgress(this, deploy)) {
                 Toast.makeText(this, R.string.pl_assets_import_half_done, Toast.LENGTH_LONG).show()
                 startActivity(Intent(this, DeployImportActivity::class.java))
+                return false
+            }
+        }
+        // DataBuildConfig.launchReady: a host whose data is built/imported on the device gates PLAY
+        // (and a direct launch) on it. A half-done build never counts as ready.
+        config.dataBuild?.let { build ->
+            val ready = build.launchReady ?: return@let
+            if (com.teampacheworks.launcher.databuild.DataBuildStorage.buildInProgress(this, build) ||
+                !ready(this)
+            ) {
+                Toast.makeText(this, R.string.pl_build_launch_blocked, Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, DataBuildActivity::class.java))
                 return false
             }
         }
