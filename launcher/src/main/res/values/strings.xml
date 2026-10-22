@@ -70,6 +70,8 @@
 
     <string name="pl_show_fps">Show FPS</string>
     <string name="pl_show_fps_hint"></string>
+    <!-- Reset icon beside a SLIDER host option row (OptionRows): %1$s is the option label. -->
+    <string name="pl_option_reset">Reset %1$s</string>
     <!-- LauncherConfig.directLaunch only. -->
     <string name="pl_always_launcher">Always start with launcher</string>
     <string name="pl_always_launcher_hint">When off, the game starts directly once it has launched successfully. The launcher still opens after a crash, or when you press Back twice in game.</string>

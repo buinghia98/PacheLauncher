@@ -153,12 +153,22 @@ the chosen `value` to the game Activity as the String extra
 `LauncherContract.extraNameFor(key)`. An FPS limiter, a texture-quality level and a scaler mode are
 all the same thing to it.
 
-A **boolean** knob is not a special case: declare it as a two-choice option (`Off`/`On` labels over
-two stable values) and it renders as a two-item `Spinner` like every other row. There is
-deliberately no switch/toggle option kind — introducing one would add a second render path and a
-row of a different shape mid-column, breaking the uniform label→`Spinner`→hint rhythm this card is
-built on. An "Async GPU submit" row is a boolean expressed exactly this way, sitting next to
-multi-choice "Present mode" and "FPS limit" rows without reading as a different kind of control.
+A **boolean** knob is a two-choice option ordered Off, On. By default it renders as a two-item
+`Spinner` like every other row; declared with `control = LauncherOptionControl.TOGGLE` it renders as
+a `MaterialSwitch` + hint instead. Persistence and the Intent extra are identical either way (the
+two choice values stay opaque strings), so switching a row between the two never resets a choice.
+
+An **ordered scale** (a size, a percentage, a quality step) is declared with
+`control = LauncherOptionControl.SLIDER` (at least two choices) and renders, in the same column, as a
+label row — 14sp label, and right-aligned the selected choice's label in 14sp secondary, marginBottom
+0 because the slider carries its own touch padding — then a horizontal row, `center_vertical`, of a
+Material `Slider` (weight 1, one step per choice, `valueFrom 0`, `valueTo choices.size-1`,
+`stepSize 1`, no value label) and a `Widget.Material3.Button.IconButton` reset (`pl_ic_option_reset`,
+`iconSize 20dp`, `marginStart 4dp`, content description `pl_option_reset` "Reset %1$s" with the
+option label), marginBottom 8dp over a hint and 12dp without one — the Spinner rule — and the 11sp
+hint, or nothing when blank. The value text is the choice label, never a number the library
+computed; the reset icon restores `defaultValue`. Persistence and the Intent extra are, again,
+identical to a dropdown.
 
 ## Per-game seed colour
 

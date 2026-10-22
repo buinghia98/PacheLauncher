@@ -4,6 +4,9 @@ import android.app.Application
 import com.google.android.material.color.DynamicColors
 import com.teampacheworks.launcher.LauncherConfig
 import com.teampacheworks.launcher.LauncherHost
+import com.teampacheworks.launcher.LauncherOption
+import com.teampacheworks.launcher.LauncherOptionChoice
+import com.teampacheworks.launcher.LauncherOptionControl
 import com.teampacheworks.launcher.log.CrashReporter
 import com.teampacheworks.launcher.log.LauncherLog
 
@@ -32,6 +35,19 @@ class SampleApplication : Application() {
                 savePatterns = listOf("save_*.dat"),
                 saveExcludeNames = setOf("settings.cfg"),
                 gameActivityClass = SampleGameActivity::class.java,
+                // One host option of each control kind the library draws (docs/UI-SPEC.md "Host
+                // options"). The sample game reads none of them; they are here so the rows can be
+                // seen, and so this module keeps compiling against the LauncherOption API.
+                gameOptions = listOf(
+                    LauncherOption(
+                        key = "scale",
+                        label = "Render scale",
+                        hint = "",
+                        choices = listOf("50", "75", "100").map { LauncherOptionChoice(it, "$it%") },
+                        defaultValue = "100",
+                        control = LauncherOptionControl.SLIDER
+                    )
+                ),
                 appVersionName = BuildConfig.VERSION_NAME,
                 iconRes = R.mipmap.ic_launcher,
                 gameProcessSuffix = ":game"
